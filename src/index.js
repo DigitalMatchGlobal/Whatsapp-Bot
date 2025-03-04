@@ -66,14 +66,14 @@ async function sendWhatsAppMessage(to, text) {
                         type: "reply",
                         reply: {
                             id: "option_1",
-                            title: "🚀 Quiero automatizar procesos"
+                            title: "🚀 Automatizar"
                         }
                     },
                     {
                         type: "reply",
                         reply: {
                             id: "option_2",
-                            title: "ℹ️ Quiero más información"
+                            title: "ℹ️ Más info"
                         }
                     }
                 ]
