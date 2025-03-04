@@ -54,13 +54,35 @@ app.post("/webhook", async (req, res) => {
 async function sendWhatsAppMessage(to, text) {
     const data = {
         messaging_product: "whatsapp",
+        recipient_type: "individual",
         to: to,
-        type: "text",
-        text: { body: text },
+        type: "interactive",
+        interactive: {
+            type: "button",
+            body: { text: text },
+            action: {
+                buttons: [
+                    {
+                        type: "reply",
+                        reply: {
+                            id: "option_1",
+                            title: "🚀 Quiero automatizar procesos"
+                        }
+                    },
+                    {
+                        type: "reply",
+                        reply: {
+                            id: "option_2",
+                            title: "ℹ️ Quiero más información"
+                        }
+                    }
+                ]
+            }
+        }
     };
 
     try {
-        const response = await axios.post(
+        await axios.post(
             `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
             data,
             {
@@ -70,11 +92,12 @@ async function sendWhatsAppMessage(to, text) {
                 },
             }
         );
-        console.log(`✅ Mensaje enviado a ${to}: ${text}`);
+        console.log(`✅ Mensaje con botones enviado a ${to}`);
     } catch (error) {
-        console.error("❌ Error al enviar el mensaje:", error.response?.data || error.message);
+        console.error("❌ Error al enviar mensaje con botones:", error.response?.data || error.message);
     }
 }
+
 
 // ✅ Iniciar el servidor
 app.listen(PORT, () => {
