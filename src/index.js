@@ -38,19 +38,19 @@ app.post("/webhook", async (req, res) => {
 
             if (message.type === "text") {
                 // 📩 Si el mensaje es texto normal
-                const messageText = message.text.body;
+                const messageText = message.text.body.trim();
                 console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
 
-                await sendWhatsAppMessage(phoneNumber, "¡Hola! ¿Te gustaría recibir más información o automatizar procesos?");
+                await sendWhatsAppButtons(phoneNumber, "¿Te gustaría recibir más información o automatizar procesos?");
             } else if (message.type === "interactive" && message.interactive.type === "button_reply") {
                 // 🎯 Si el usuario presionó un botón
                 const selectedOption = message.interactive.button_reply.id;
                 console.log(`✅ Opción seleccionada por ${phoneNumber}: ${selectedOption}`);
 
                 if (selectedOption === "option_1") {
-                    await sendWhatsAppMessage(phoneNumber, "Genial, podemos ayudarte a automatizar procesos. ¿En qué área trabajas?");
+                    await sendWhatsAppText(phoneNumber, "🚀 Genial, podemos ayudarte a automatizar procesos. ¿En qué área trabajas?");
                 } else if (selectedOption === "option_2") {
-                    await sendWhatsAppMessage(phoneNumber, "¡Claro! Te cuento más sobre nuestras soluciones de automatización.");
+                    await sendWhatsAppText(phoneNumber, "ℹ️ ¡Claro! Te cuento más sobre nuestras soluciones de automatización.");
                 }
             }
         }
@@ -62,9 +62,36 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
+// ✅ Función para enviar mensajes de texto (Soluciona el problema en WhatsApp Web)
+async function sendWhatsAppText(to, text) {
+    const cleanText = text.trim();
+    const data = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "text",
+        text: { body: cleanText },
+    };
 
-// ✅ Función para enviar mensajes de WhatsApp
-async function sendWhatsAppMessage(to, text) {
+    try {
+        await axios.post(
+            `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
+            data,
+            {
+                headers: {
+                    Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+        console.log(`✅ Mensaje enviado a ${to}: ${cleanText}`);
+    } catch (error) {
+        console.error("❌ Error al enviar mensaje:", error.response?.data || error.message);
+    }
+}
+
+// ✅ Función para enviar botones interactivos
+async function sendWhatsAppButtons(to, text) {
     const data = {
         messaging_product: "whatsapp",
         recipient_type: "individual",
@@ -72,7 +99,7 @@ async function sendWhatsAppMessage(to, text) {
         type: "interactive",
         interactive: {
             type: "button",
-            body: { text: text },
+            body: { text: text.trim() },
             action: {
                 buttons: [
                     {
@@ -105,12 +132,11 @@ async function sendWhatsAppMessage(to, text) {
                 },
             }
         );
-        console.log(`✅ Mensaje con botones enviado a ${to}`);
+        console.log(`✅ Botones enviados a ${to}`);
     } catch (error) {
-        console.error("❌ Error al enviar mensaje con botones:", error.response?.data || error.message);
+        console.error("❌ Error al enviar botones:", error.response?.data || error.message);
     }
 }
-
 
 // ✅ Iniciar el servidor
 app.listen(PORT, () => {
