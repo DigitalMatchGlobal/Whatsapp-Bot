@@ -12,22 +12,20 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "digitalmatch";
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 
-// ✅ Verificación del webhook en Meta Developer
+// ✅ Verificación del webhook
 app.get("/webhook", (req, res) => {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
-        console.log("✅ Webhook verificado correctamente!");
         return res.status(200).send(challenge);
     } else {
-        console.error("❌ Error en la verificación del webhook.");
         return res.sendStatus(403);
     }
 });
 
-// ✅ Recepción de mensajes de WhatsApp
+// ✅ Manejo de mensajes entrantes
 app.post("/webhook", async (req, res) => {
     try {
         const body = req.body;
@@ -35,27 +33,31 @@ app.post("/webhook", async (req, res) => {
         if (body.object && body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages) {
             const message = body.entry[0].changes[0].value.messages[0];
             const phoneNumber = message.from;
+            const messageText = message.text?.body.trim().toLowerCase() || "";
 
-            if (message.type === "text") {
-                const messageText = message.text.body.trim();
-                console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
+            console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
 
-                // Si el usuario envía un mensaje sin contexto, se le presentan opciones
-                await sendWhatsAppButtons(phoneNumber, "Hola! ¿Te gustaría recibir más información o automatizar procesos?");
-            } else if (message.type === "interactive" && message.interactive.type === "button_reply") {
-                const selectedOption = message.interactive.button_reply.id;
-                console.log(`✅ Opción seleccionada por ${phoneNumber}: ${selectedOption}`);
-
-                if (selectedOption === "option_1") {
-                    await sendWhatsAppList(phoneNumber, "¿En qué área de tu negocio deseas automatizar?");
-                } else if (selectedOption === "option_2") {
-                    await sendWhatsAppDocument(phoneNumber);
-                }
-            } else if (message.type === "interactive" && message.interactive.type === "list_reply") {
-                const selectedArea = message.interactive.list_reply.id;
-                console.log(`✅ Área seleccionada por ${phoneNumber}: ${selectedArea}`);
-
-                await sendWhatsAppText(phoneNumber, `¡Excelente elección! Cuéntame más detalles sobre lo que necesitas en ${selectedArea}.`);
+            if (messageText === "hola") {
+                await sendWhatsAppText(phoneNumber, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas? Responde con el número de la opción:\n\n1️⃣ Automatizar procesos\n2️⃣ Obtener información sobre nuestros servicios\n3️⃣ Hablar con un representante");
+            } else if (messageText === "1") {
+                await sendWhatsAppText(phoneNumber, "¡Genial! ¿En qué área necesitas automatizar?\n\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
+            } else if (["1", "2", "3", "4", "5"].includes(messageText)) {
+                const areas = {
+                    "1": "Ventas",
+                    "2": "Marketing",
+                    "3": "Finanzas",
+                    "4": "Operaciones",
+                    "5": "Atención al cliente"
+                };
+                await sendWhatsAppText(phoneNumber, `¡Perfecto! ¿Qué problema o tarea específica te gustaría automatizar en ${areas[messageText]}? Puedes describirlo en pocas palabras.`);
+            } else if (messageText === "2") {
+                await sendWhatsAppText(phoneNumber, "Ofrecemos soluciones de automatización en diferentes áreas como ventas, marketing, finanzas y atención al cliente. Para más detalles, visita nuestro sitio web: https://digitalmatchglobal.com");
+            } else if (messageText === "3") {
+                await sendWhatsAppText(phoneNumber, "¡Entendido! En breve, un representante se pondrá en contacto contigo. Mientras tanto, ¿te gustaría recibir información sobre nuestros servicios en tu correo? Si es así, por favor dime tu dirección de email.");
+            } else if (messageText.includes("@")) {
+                await sendWhatsAppText(phoneNumber, `¡Gracias! Te enviaremos más información a ${messageText}. ✅`);
+            } else {
+                await sendWhatsAppText(phoneNumber, "No entendí tu respuesta. Por favor, responde con un número de opción (1, 2 o 3).");
             }
         }
 
@@ -79,81 +81,7 @@ async function sendWhatsAppText(to, text) {
     await sendWhatsAppRequest(data, to);
 }
 
-// ✅ Función para enviar botones interactivos
-async function sendWhatsAppButtons(to, text) {
-    const data = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: to,
-        type: "interactive",
-        interactive: {
-            type: "button",
-            body: { text: text.trim() },
-            action: {
-                buttons: [
-                    {
-                        type: "reply",
-                        reply: { id: "option_1", title: "🚀 Automatizar" }
-                    },
-                    {
-                        type: "reply",
-                        reply: { id: "option_2", title: "ℹ️ Más info" }
-                    }
-                ]
-            }
-        }
-    };
-
-    await sendWhatsAppRequest(data, to);
-}
-
-// ✅ Función para enviar listas desplegables
-async function sendWhatsAppList(to, text) {
-    const data = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: to,
-        type: "interactive",
-        interactive: {
-            type: "list",
-            body: { text: text.trim() },
-            action: {
-                button: "Seleccionar área",
-                sections: [
-                    {
-                        title: "Áreas de Automatización",
-                        rows: [
-                            { id: "sistemas", title: "Sistemas" },
-                            { id: "marketing", title: "Marketing" },
-                            { id: "ventas", title: "Ventas" },
-                            { id: "finanzas", title: "Finanzas" }
-                        ]
-                    }
-                ]
-            }
-        }
-    };
-
-    await sendWhatsAppRequest(data, to);
-}
-
-// ✅ Función para enviar documentos PDF
-async function sendWhatsAppDocument(to) {
-    const data = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: to,
-        type: "document",
-        document: {
-            link: "https://example.com/tu-documento.pdf",
-            filename: "Info_Automatización.pdf"
-        }
-    };
-
-    await sendWhatsAppRequest(data, to);
-}
-
-// ✅ Función genérica para enviar solicitudes a la API de WhatsApp
+// ✅ Función genérica para hacer solicitudes a WhatsApp API
 async function sendWhatsAppRequest(data, to) {
     try {
         await axios.post(
