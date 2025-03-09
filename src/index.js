@@ -35,12 +35,24 @@ app.post("/webhook", async (req, res) => {
         if (body.object && body.entry && body.entry[0].changes && body.entry[0].changes[0].value.messages) {
             const message = body.entry[0].changes[0].value.messages[0];
             const phoneNumber = message.from;
-            const messageText = message.text?.body || "";
 
-            console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
+            if (message.type === "text") {
+                // 📩 Si el mensaje es texto normal
+                const messageText = message.text.body;
+                console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
 
-            // ✅ Respuesta automática al usuario
-            await sendWhatsAppMessage(phoneNumber, "👋 ¡Hola! Soy el bot de DigitalMatchGlobal. ¿En qué puedo ayudarte?");
+                await sendWhatsAppMessage(phoneNumber, "👋 ¡Hola! ¿Te gustaría recibir más información o automatizar procesos?");
+            } else if (message.type === "interactive" && message.interactive.type === "button_reply") {
+                // 🎯 Si el usuario presionó un botón
+                const selectedOption = message.interactive.button_reply.id;
+                console.log(`✅ Opción seleccionada por ${phoneNumber}: ${selectedOption}`);
+
+                if (selectedOption === "option_1") {
+                    await sendWhatsAppMessage(phoneNumber, "🚀 Genial, podemos ayudarte a automatizar procesos. ¿En qué área trabajas?");
+                } else if (selectedOption === "option_2") {
+                    await sendWhatsAppMessage(phoneNumber, "ℹ️ ¡Claro! Te cuento más sobre nuestras soluciones de automatización.");
+                }
+            }
         }
 
         res.sendStatus(200);
@@ -49,6 +61,7 @@ app.post("/webhook", async (req, res) => {
         res.sendStatus(500);
     }
 });
+
 
 // ✅ Función para enviar mensajes de WhatsApp
 async function sendWhatsAppMessage(to, text) {
