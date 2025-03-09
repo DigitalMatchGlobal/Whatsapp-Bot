@@ -41,16 +41,16 @@ app.post("/webhook", async (req, res) => {
                 const messageText = message.text.body;
                 console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
 
-                await sendWhatsAppMessage(phoneNumber, "\u200B👋 ¡Hola! ¿Te gustaría recibir más información o automatizar procesos?");
+                await sendWhatsAppMessage(phoneNumber, "¡Hola! ¿Te gustaría recibir más información o automatizar procesos?");
             } else if (message.type === "interactive" && message.interactive.type === "button_reply") {
                 // 🎯 Si el usuario presionó un botón
                 const selectedOption = message.interactive.button_reply.id;
                 console.log(`✅ Opción seleccionada por ${phoneNumber}: ${selectedOption}`);
 
                 if (selectedOption === "option_1") {
-                    await sendWhatsAppMessage(phoneNumber, "\u200B🚀 Genial, podemos ayudarte a automatizar procesos. ¿En qué área trabajas?");
+                    await sendWhatsAppMessage(phoneNumber, "Genial, podemos ayudarte a automatizar procesos. ¿En qué área trabajas?");
                 } else if (selectedOption === "option_2") {
-                    await sendWhatsAppMessage(phoneNumber, "\u200Bℹ️ ¡Claro! Te cuento más sobre nuestras soluciones de automatización.");
+                    await sendWhatsAppMessage(phoneNumber, "¡Claro! Te cuento más sobre nuestras soluciones de automatización.");
                 }
             }
         }
