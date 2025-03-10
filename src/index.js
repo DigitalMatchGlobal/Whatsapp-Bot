@@ -4,7 +4,6 @@ const cors = require("cors");
 const axios = require("axios");
 const mongoose = require("mongoose");
 const { GoogleSpreadsheet } = require("google-spreadsheet");
-const fs = require("fs");
 
 const app = express();
 app.use(cors());
@@ -16,10 +15,7 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 const MONGO_URI = process.env.MONGO_URI;
 const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
-const GOOGLE_SHEETS_CREDENTIALS_PATH = process.env.GOOGLE_SHEETS_CREDENTIALS_PATH;
-
-// ✅ Leer credenciales JSON de Google Sheets
-const GOOGLE_SHEETS_CREDENTIALS = JSON.parse(fs.readFileSync(GOOGLE_SHEETS_CREDENTIALS_PATH, "utf8"));
+const GOOGLE_SHEETS_CREDENTIALS = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS); // ✅ Cargar credenciales directamente
 
 // ✅ Conectar a MongoDB Atlas
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -106,6 +102,7 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
+// ✅ Guardar en MongoDB
 async function guardarConsulta(usuario, mensaje) {
     try {
         await new Consulta({ usuario, mensaje }).save();
@@ -135,6 +132,7 @@ async function saveToGoogleSheets(phone, message) {
     }
 }
 
+// ✅ Enviar mensaje a WhatsApp
 async function sendWhatsAppText(to, text) {
     await axios.post(`https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`, {
         messaging_product: "whatsapp",
