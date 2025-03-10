@@ -15,7 +15,19 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 const MONGO_URI = process.env.MONGO_URI;
 const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
-const GOOGLE_SHEETS_CREDENTIALS_PATH= JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS_PATH); // ✅ Cargar credenciales directamente
+
+// ✅ Cargar credenciales de Google Sheets correctamente
+let GOOGLE_SHEETS_CREDENTIALS;
+try {
+    if (!process.env.GOOGLE_SHEETS_CREDENTIALS_PATH) {
+        throw new Error("GOOGLE_SHEETS_CREDENTIALS_PATH no está definido en las variables de entorno.");
+    }
+    GOOGLE_SHEETS_CREDENTIALS = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS_PATH);
+    console.log("✅ Credenciales de Google Sheets cargadas correctamente");
+} catch (error) {
+    console.error("❌ Error al cargar las credenciales de Google Sheets:", error.message);
+    process.exit(1);
+}
 
 // ✅ Conectar a MongoDB Atlas
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -62,37 +74,10 @@ app.post("/webhook", async (req, res) => {
                 return res.sendStatus(200);
             }
 
-            if (userState[phoneNumber] === "inicio" && !["1", "2", "3"].includes(messageText)) {
-                await sendWhatsAppText(phoneNumber, "Por favor, responde con un número de opción (1, 2 o 3). 🙏");
-                return res.sendStatus(200);
-            }
-
             if (messageText === "hola") {
-                if (userState[phoneNumber]) {
-                    await sendWhatsAppText(phoneNumber, "Ya estamos conversando. Si deseas reiniciar la consulta, escribe 'Reiniciar'.");
-                } else {
-                    userState[phoneNumber] = "inicio";
-                    await sendWhatsAppText(phoneNumber, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Obtener información\n3️⃣ Hablar con un representante");
-                }
+                userState[phoneNumber] = "inicio";
+                await sendWhatsAppText(phoneNumber, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Obtener información\n3️⃣ Hablar con un representante");
                 return res.sendStatus(200);
-            }
-
-            if (messageText === "3") {
-                await sendWhatsAppText(phoneNumber, "¡Entendido! Un representante se pondrá en contacto contigo. Si deseas, envíanos tu email para más información.");
-            } else if (messageText === "2") {
-                await sendWhatsAppText(phoneNumber, "Para más información, visita: https://digitalmatchglobal.com 📍");
-            } else if (messageText === "1") {
-                userState[phoneNumber] = "automatizar";
-                await sendWhatsAppText(phoneNumber, "¿En qué área necesitas automatización?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
-            } else if (userState[phoneNumber] === "automatizar" && ["1", "2", "3", "4", "5"].includes(messageText)) {
-                await sendWhatsAppText(phoneNumber, "Describe en pocas palabras el proceso que quieres automatizar. 📝");
-                userState[phoneNumber] = "esperando_descripcion";
-            } else if (userState[phoneNumber] === "esperando_descripcion") {
-                await saveToGoogleSheets(phoneNumber, messageText);
-                await sendWhatsAppText(phoneNumber, "¡Gracias! Registramos tu solicitud. Un representante te contactará en breve. ✅");
-                delete userState[phoneNumber];
-            } else {
-                await sendWhatsAppText(phoneNumber, "No entendí tu respuesta. Si necesitas ayuda, escribe 'Hola' para comenzar. 🤖");
             }
         }
         res.sendStatus(200);
