@@ -60,26 +60,65 @@ app.get("/webhook", (req, res) => {
 // ✅ Webhook para mensajes entrantes
 app.post("/webhook", async (req, res) => {
     try {
+        console.log("📩 Webhook recibido:", JSON.stringify(req.body, null, 2));
+
         const body = req.body;
-        if (body.object && body.entry) {
-            const message = body.entry[0].changes[0].value.messages[0];
-            const phoneNumber = message.from;
-            const messageText = message.text?.body.trim().toLowerCase() || "";
+        if (!body.object || !body.entry || !body.entry[0].changes || !body.entry[0].changes[0].value.messages) {
+            console.error("❌ Estructura inesperada del webhook");
+            return res.sendStatus(400);
+        }
 
-            console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
-            await guardarConsulta(phoneNumber, messageText);
+        const messagesArray = body.entry[0].changes[0].value.messages;
+        if (!messagesArray || messagesArray.length === 0) {
+            console.error("❌ No hay mensajes en la solicitud entrante.");
+            return res.sendStatus(400);
+        }
 
-            if (faqResponses[messageText]) {
-                await sendWhatsAppText(phoneNumber, faqResponses[messageText]);
-                return res.sendStatus(200);
-            }
+        const message = messagesArray[0];
+        const phoneNumber = message.from;
+        const messageText = message.text?.body.trim().toLowerCase() || "";
 
-            if (messageText === "hola") {
+        console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
+        await guardarConsulta(phoneNumber, messageText);
+
+        if (faqResponses[messageText]) {
+            await sendWhatsAppText(phoneNumber, faqResponses[messageText]);
+            return res.sendStatus(200);
+        }
+
+        if (userState[phoneNumber] === "inicio" && !["1", "2", "3"].includes(messageText)) {
+            await sendWhatsAppText(phoneNumber, "Por favor, responde con un número de opción (1, 2 o 3). 🙏");
+            return res.sendStatus(200);
+        }
+
+        if (messageText === "hola") {
+            if (userState[phoneNumber]) {
+                await sendWhatsAppText(phoneNumber, "Ya estamos conversando. Si deseas reiniciar la consulta, escribe 'Reiniciar'.");
+            } else {
                 userState[phoneNumber] = "inicio";
                 await sendWhatsAppText(phoneNumber, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Obtener información\n3️⃣ Hablar con un representante");
-                return res.sendStatus(200);
             }
+            return res.sendStatus(200);
         }
+
+        if (messageText === "3") {
+            await sendWhatsAppText(phoneNumber, "¡Entendido! Un representante se pondrá en contacto contigo. Si deseas, envíanos tu email para más información.");
+        } else if (messageText === "2") {
+            await sendWhatsAppText(phoneNumber, "Para más información, visita: https://digitalmatchglobal.com 📍");
+        } else if (messageText === "1") {
+            userState[phoneNumber] = "automatizar";
+            await sendWhatsAppText(phoneNumber, "¿En qué área necesitas automatización?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
+        } else if (userState[phoneNumber] === "automatizar" && ["1", "2", "3", "4", "5"].includes(messageText)) {
+            await sendWhatsAppText(phoneNumber, "Describe en pocas palabras el proceso que quieres automatizar. 📝");
+            userState[phoneNumber] = "esperando_descripcion";
+        } else if (userState[phoneNumber] === "esperando_descripcion") {
+            await saveToGoogleSheets(phoneNumber, messageText);
+            await sendWhatsAppText(phoneNumber, "¡Gracias! Registramos tu solicitud. Un representante te contactará en breve. ✅");
+            delete userState[phoneNumber];
+        } else {
+            await sendWhatsAppText(phoneNumber, "No entendí tu respuesta. Si necesitas ayuda, escribe 'Hola' para comenzar. 🤖");
+        }
+
         res.sendStatus(200);
     } catch (error) {
         console.error("❌ Error al procesar mensaje:", error);
