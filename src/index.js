@@ -4,9 +4,19 @@ const cors = require("cors");
 const axios = require("axios");
 const mongoose = require("mongoose");
 
-// ✅ Conectar a MongoDB Atlas con manejo de errores
-const uri = process.env.MONGO_URI;
-mongoose.connect(uri)
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "digitalmatch";
+const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
+const MONGO_URI = process.env.MONGO_URI;
+const API_KEY = process.env.API_KEY || "supersecreta"; // Clave de seguridad
+
+// ✅ Conectar a MongoDB Atlas
+mongoose.connect(MONGO_URI)
     .then(() => console.log("✅ Conectado a MongoDB Atlas"))
     .catch((err) => {
         console.error("❌ Error al conectar a MongoDB:", err);
@@ -21,19 +31,7 @@ const ConsultaSchema = new mongoose.Schema({
 });
 const Consulta = mongoose.model("Consulta", ConsultaSchema);
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-const PORT = process.env.PORT || 3000;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "digitalmatch";
-const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
-const API_KEY = process.env.API_KEY || "supersecreta"; // Clave de seguridad para acceder a los endpoints
-
-const userState = {}; // Guarda el estado de la conversación de cada usuario
-
-// ✅ Middleware para verificar la API Key en las solicitudes protegidas
+// ✅ Middleware para verificar la API Key en endpoints protegidos
 const verificarAPIKey = (req, res, next) => {
     const apiKey = req.headers["x-api-key"];
     if (!apiKey || apiKey !== API_KEY) {
@@ -42,13 +40,13 @@ const verificarAPIKey = (req, res, next) => {
     next();
 };
 
-// ✅ Middleware para loggear todas las solicitudes
+// ✅ Middleware para loggear solicitudes
 app.use((req, res, next) => {
     console.log(`📢 [${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
 });
 
-// ✅ Verificación del webhook
+// ✅ Webhook de verificación
 app.get("/webhook", (req, res) => {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
@@ -75,7 +73,18 @@ app.post("/webhook", async (req, res) => {
             // 📌 Guardar consulta en MongoDB
             await guardarConsulta(phoneNumber, messageText);
 
-            await sendWhatsAppText(phoneNumber, "Tu mensaje ha sido recibido. ¡Gracias! 🚀");
+            // 📌 Flujo de conversación basado en opciones
+            if (messageText === "hola") {
+                await sendWhatsAppText(phoneNumber, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas? Responde con el número de la opción:\n\n1️⃣ Automatizar procesos\n2️⃣ Obtener información sobre nuestros servicios\n3️⃣ Hablar con un representante");
+            } else if (messageText === "1") {
+                await sendWhatsAppText(phoneNumber, "¡Genial! ¿En qué área necesitas automatizar?\n\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
+            } else if (messageText === "2") {
+                await sendWhatsAppText(phoneNumber, "Ofrecemos soluciones de automatización en diferentes áreas como ventas, marketing, finanzas y atención al cliente. Para más detalles, visita nuestro sitio web: https://digitalmatchglobal.com");
+            } else if (messageText === "3") {
+                await sendWhatsAppText(phoneNumber, "¡Entendido! En breve, un representante se pondrá en contacto contigo. Si deseas, puedes enviarnos tu email para recibir más información.");
+            } else {
+                await sendWhatsAppText(phoneNumber, "No entendí tu respuesta. Si necesitas ayuda, escribe 'Hola' para comenzar.");
+            }
         }
         res.sendStatus(200);
     } catch (error) {
@@ -94,7 +103,8 @@ app.get("/consultas", verificarAPIKey, async (req, res) => {
             .skip((parseInt(page) - 1) * parseInt(limit));
         res.json({ success: true, data: consultas });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Error al obtener consultas" });
+        console.error("❌ Error al obtener consultas:", error);
+        res.status(500).json({ success: false, message: "Error al obtener las consultas" });
     }
 });
 
@@ -107,6 +117,7 @@ app.delete("/consultas/limpiar", verificarAPIKey, async (req, res) => {
         await Consulta.deleteMany({ fecha: { $lt: limiteFecha } });
         res.json({ success: true, message: `Consultas de más de ${dias} días eliminadas.` });
     } catch (error) {
+        console.error("❌ Error al limpiar consultas:", error);
         res.status(500).json({ success: false, message: "Error al limpiar consultas" });
     }
 });
@@ -131,6 +142,7 @@ async function sendWhatsAppText(to, text) {
         type: "text",
         text: { body: text.trim() },
     };
+
     await axios.post(
         `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
         data,
