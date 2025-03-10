@@ -2,6 +2,24 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+const mongoose = require("mongoose");
+
+// ✅ Conectar a MongoDB Atlas
+const uri = process.env.MONGO_URI;
+mongoose.connect(uri)
+    .then(() => console.log("✅ Conectado a MongoDB Atlas"))
+    .catch((err) => {
+        console.error("❌ Error al conectar a MongoDB:", err);
+        process.exit(1); // Detener la ejecución si hay error en la conexión
+    });
+
+// ✅ Definir modelo de consultas
+const ConsultaSchema = new mongoose.Schema({
+    usuario: String,
+    mensaje: String,
+    fecha: { type: Date, default: Date.now }
+});
+const Consulta = mongoose.model("Consulta", ConsultaSchema);
 
 const app = express();
 app.use(cors());
@@ -12,7 +30,7 @@ const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "digitalmatch";
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 
-const userState = {};  // Guarda en qué estado de conversación está cada usuario
+const userState = {}; // Guarda el estado de la conversación de cada usuario
 
 // ✅ Verificación del webhook
 app.get("/webhook", (req, res) => {
@@ -38,6 +56,9 @@ app.post("/webhook", async (req, res) => {
             const messageText = message.text?.body.trim().toLowerCase() || "";
 
             console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
+
+            // 📌 Guardar consulta en MongoDB
+            await guardarConsulta(phoneNumber, messageText);
 
             // 📌 Si el usuario dice "Hola", iniciamos conversación
             if (messageText === "hola") {
@@ -101,7 +122,7 @@ app.post("/webhook", async (req, res) => {
                 return res.sendStatus(200);
             }
 
-            // 📌 Si no está en un flujo, el bot da un mensaje genérico
+            // 📌 Mensaje no reconocido
             await sendWhatsAppText(phoneNumber, "No entendí tu respuesta. Si necesitas ayuda, escribe 'Hola' para comenzar.");
         }
 
@@ -112,35 +133,14 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
-// ✅ Función para enviar mensajes de texto
-async function sendWhatsAppText(to, text) {
-    const data = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: to,
-        type: "text",
-        text: { body: text.trim() },
-    };
-
-    await sendWhatsAppRequest(data, to);
-}
-
-// ✅ Función genérica para hacer solicitudes a WhatsApp API
-async function sendWhatsAppRequest(data, to) {
+// ✅ Función para guardar consulta en MongoDB
+async function guardarConsulta(usuario, mensaje) {
     try {
-        await axios.post(
-            `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
-            data,
-            {
-                headers: {
-                    Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
-        console.log(`✅ Mensaje enviado a ${to}`);
-    } catch (error) {
-        console.error("❌ Error al enviar mensaje:", error.response?.data || error.message);
+        const nuevaConsulta = new Consulta({ usuario, mensaje });
+        await nuevaConsulta.save();
+        console.log("✅ Consulta guardada en MongoDB");
+    } catch (err) {
+        console.error("❌ Error al guardar consulta:", err);
     }
 }
 
