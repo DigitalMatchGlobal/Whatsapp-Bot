@@ -15,7 +15,7 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 const MONGO_URI = process.env.MONGO_URI;
 const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
-const GOOGLE_SHEETS_CREDENTIALS = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS); // ✅ Cargar credenciales directamente
+const GOOGLE_SHEETS_CREDENTIALS_PATH= JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS_PATH); // ✅ Cargar credenciales directamente
 
 // ✅ Conectar a MongoDB Atlas
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
