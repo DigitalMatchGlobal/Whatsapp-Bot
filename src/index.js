@@ -4,16 +4,25 @@ const cors = require("cors");
 const axios = require("axios");
 const mongoose = require("mongoose");
 
-// ✅ Conectar a MongoDB Atlas
+// ✅ Conectar a MongoDB Atlas con reconexión automática
 const uri = process.env.MONGO_URI;
-mongoose.connect(uri)
-    .then(() => console.log("✅ Conectado a MongoDB Atlas"))
-    .catch((err) => {
-        console.error("❌ Error al conectar a MongoDB:", err);
-        process.exit(1); // Detener la ejecución si hay error en la conexión
-    });
 
-// ✅ Definir modelo de consultas
+async function conectarMongoDB() {
+    try {
+        await mongoose.connect(uri, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 5000, // ⏳ Espera 5 segundos antes de dar error
+        });
+        console.log("✅ Conectado a MongoDB Atlas");
+    } catch (err) {
+        console.error("❌ Error al conectar a MongoDB:", err);
+        setTimeout(conectarMongoDB, 5000); // 🔄 Reintenta cada 5 segundos
+    }
+}
+conectarMongoDB();
+
+// ✅ Definir modelo de consultas en MongoDB
 const ConsultaSchema = new mongoose.Schema({
     usuario: String,
     mensaje: String,
@@ -32,7 +41,7 @@ const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 
 const userState = {}; // Guarda el estado de la conversación de cada usuario
 
-// ✅ Verificación del webhook
+// ✅ Verificación del webhook de WhatsApp
 app.get("/webhook", (req, res) => {
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
@@ -45,7 +54,7 @@ app.get("/webhook", (req, res) => {
     }
 });
 
-// ✅ Manejo de mensajes entrantes
+// ✅ Manejo de mensajes entrantes desde WhatsApp
 app.post("/webhook", async (req, res) => {
     try {
         const body = req.body;
@@ -110,20 +119,6 @@ app.post("/webhook", async (req, res) => {
                 delete userState[phoneNumber]; // Finaliza conversación
                 return res.sendStatus(200);
             }
-
-            // 📌 Estado: Esperando email
-            if (userState[phoneNumber] === "esperando_email") {
-                if (messageText.includes("@")) {
-                    await sendWhatsAppText(phoneNumber, `¡Gracias! Te enviaremos más información a ${messageText}. ✅`);
-                    delete userState[phoneNumber]; // Finaliza conversación
-                } else {
-                    await sendWhatsAppText(phoneNumber, "Por favor, ingresa un email válido.");
-                }
-                return res.sendStatus(200);
-            }
-
-            // 📌 Mensaje no reconocido
-            await sendWhatsAppText(phoneNumber, "No entendí tu respuesta. Si necesitas ayuda, escribe 'Hola' para comenzar.");
         }
 
         res.sendStatus(200);
@@ -133,7 +128,7 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
-// ✅ Función para guardar consulta en MongoDB
+// ✅ Función para guardar consultas en MongoDB
 async function guardarConsulta(usuario, mensaje) {
     try {
         const nuevaConsulta = new Consulta({ usuario, mensaje });
@@ -141,6 +136,38 @@ async function guardarConsulta(usuario, mensaje) {
         console.log("✅ Consulta guardada en MongoDB");
     } catch (err) {
         console.error("❌ Error al guardar consulta:", err);
+    }
+}
+
+// ✅ Función para enviar mensajes de WhatsApp
+async function sendWhatsAppText(to, text) {
+    const data = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "text",
+        text: { body: text.trim() },
+    };
+
+    await sendWhatsAppRequest(data, to);
+}
+
+// ✅ Función para hacer solicitudes a la API de WhatsApp
+async function sendWhatsAppRequest(data, to) {
+    try {
+        await axios.post(
+            `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
+            data,
+            {
+                headers: {
+                    Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+        console.log(`✅ Mensaje enviado a ${to}`);
+    } catch (error) {
+        console.error("❌ Error al enviar mensaje:", error.response?.data || error.message);
     }
 }
 
