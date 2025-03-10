@@ -4,6 +4,7 @@ const cors = require("cors");
 const axios = require("axios");
 const mongoose = require("mongoose");
 const { GoogleSpreadsheet } = require("google-spreadsheet");
+const fs = require("fs");
 
 const app = express();
 app.use(cors());
@@ -15,7 +16,10 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 const MONGO_URI = process.env.MONGO_URI;
 const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
-const GOOGLE_SHEETS_CREDENTIALS = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS);
+const GOOGLE_SHEETS_CREDENTIALS_PATH = process.env.GOOGLE_SHEETS_CREDENTIALS_PATH;
+
+// ✅ Leer credenciales JSON de Google Sheets
+const GOOGLE_SHEETS_CREDENTIALS = JSON.parse(fs.readFileSync(GOOGLE_SHEETS_CREDENTIALS_PATH, "utf8"));
 
 // ✅ Conectar a MongoDB Atlas
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -111,13 +115,20 @@ async function guardarConsulta(usuario, mensaje) {
     }
 }
 
+// ✅ Guardar en Google Sheets
 async function saveToGoogleSheets(phone, message) {
     try {
         const doc = new GoogleSpreadsheet(GOOGLE_SHEETS_ID);
         await doc.useServiceAccountAuth(GOOGLE_SHEETS_CREDENTIALS);
         await doc.loadInfo();
         const sheet = doc.sheetsByIndex[0];
-        await sheet.addRow({ Phone: phone, Message: message, Timestamp: new Date().toLocaleString() });
+
+        await sheet.addRow({ 
+            Telefono: phone, 
+            Mensaje: message, 
+            Fecha: new Date().toLocaleString() 
+        });
+
         console.log("✅ Consulta guardada en Google Sheets");
     } catch (error) {
         console.error("❌ Error al guardar en Google Sheets:", error);
