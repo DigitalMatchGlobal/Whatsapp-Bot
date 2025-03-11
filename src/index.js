@@ -35,7 +35,7 @@ async function getSheetData() {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEETS_ID,
-      range: `${SHEET_NAME}!A:D`, // 📌 Leer todas las columnas hasta la D
+      range: `${SHEET_NAME}!A:G`, // 📌 Leer todas las columnas hasta la G
     });
     return response.data.values || [];
   } catch (error) {
@@ -45,7 +45,7 @@ async function getSheetData() {
 }
 
 // 📌 Función para escribir o actualizar datos en Google Sheets
-async function writeToSheet(phone, message) {
+async function writeToSheet(phone, name, message) {
   // ✅ Ajustar zona horaria a Montevideo (-3 UTC)
   const now = new Date();
   const montevideoTime = new Intl.DateTimeFormat("es-UY", {
@@ -58,15 +58,17 @@ async function writeToSheet(phone, message) {
     second: "2-digit",
   }).format(now);
 
-  const formattedDate = montevideoTime.replace(",", ""); // 🕒 Fecha y hora corregida
-  const today = formattedDate.split(" ")[0]; // 📌 Extraer solo la fecha
+  const formattedDateTime = montevideoTime.replace(",", ""); // 🕒 Fecha y hora corregida
+  const dateParts = formattedDateTime.split(" ");
+  const today = dateParts[0]; // 📌 Extraer solo la fecha
+  const currentTime = dateParts[1]; // 📌 Extraer solo la hora
 
   const sheetData = await getSheetData();
 
   // 📌 Buscar si el usuario ya tiene un registro en la hoja con la misma fecha
   let userRow = -1;
   for (let i = 1; i < sheetData.length; i++) {
-    if (sheetData[i][0] === phone && sheetData[i][2].includes(today)) {
+    if (sheetData[i][0] === phone && sheetData[i][2] === today) {
       userRow = i + 1; // Google Sheets usa índice basado en 1
       break;
     }
@@ -74,16 +76,18 @@ async function writeToSheet(phone, message) {
 
   if (userRow !== -1) {
     // 📌 Si el usuario ya tiene mensajes hoy, actualizar su fila
-    const existingMessage = sheetData[userRow - 1][1] || "";
+    const existingMessage = sheetData[userRow - 1][3] || "";
     const updatedMessage = existingMessage + "\n" + message; // 📝 Agregar el nuevo mensaje debajo del anterior
-    let messageCount = parseInt(sheetData[userRow - 1][3] || "1", 10) + 1; // 📌 Incrementar contador de mensajes
+    let messageCount = parseInt(sheetData[userRow - 1][6] || "1", 10) + 1; // 📌 Incrementar contador de mensajes
+    let firstMessageTime = sheetData[userRow - 1][4] || currentTime; // 📌 Mantener la hora del primer mensaje
+    let lastMessageTime = currentTime; // 📌 Actualizar la hora del último mensaje
 
     try {
       await sheets.spreadsheets.values.update({
         spreadsheetId: SHEETS_ID,
-        range: `${SHEET_NAME}!B${userRow}:D${userRow}`,
+        range: `${SHEET_NAME}!C${userRow}:G${userRow}`,
         valueInputOption: "RAW",
-        requestBody: { values: [[updatedMessage, formattedDate, messageCount]] },
+        requestBody: { values: [[today, updatedMessage, firstMessageTime, lastMessageTime, messageCount]] },
       });
       console.log(`✅ Mensaje agregado a la fila ${userRow}`);
     } catch (error) {
@@ -94,10 +98,10 @@ async function writeToSheet(phone, message) {
     try {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEETS_ID,
-        range: `${SHEET_NAME}!A:D`,
+        range: `${SHEET_NAME}!A:G`,
         valueInputOption: "RAW",
         insertDataOption: "INSERT_ROWS",
-        requestBody: { values: [[phone, message, formattedDate, 1]] },
+        requestBody: { values: [[phone, name, today, message, currentTime, currentTime, 1]] },
       });
       console.log("✅ Nuevo mensaje registrado en Google Sheets");
     } catch (error) {
@@ -117,14 +121,18 @@ app.post("/webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    const message = body.entry[0].changes[0].value.messages[0];
-    const phone = message.from;
-    const text = message.text.body;
+    const messageData = body.entry[0].changes[0].value.messages[0];
+    const phone = messageData.from;
+    const text = messageData.text.body;
 
-    console.log(`📩 Mensaje recibido de ${phone}: ${text}`);
+    // 📌 Obtener el nombre del usuario si está disponible
+    const contactInfo = body.entry[0].changes[0].value.contacts?.[0];
+    const name = contactInfo ? contactInfo.profile.name : "Desconocido";
+
+    console.log(`📩 Mensaje recibido de ${name} (${phone}): ${text}`);
 
     // ✅ Guardar en Google Sheets
-    await writeToSheet(phone, text);
+    await writeToSheet(phone, name, text);
 
     res.sendStatus(200);
   } catch (error) {
