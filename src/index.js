@@ -1,16 +1,23 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const { google } = require("googleapis");
-require("dotenv").config();
+const fs = require("fs");
 
 const app = express();
 app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
 const SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
+const CREDENTIALS_PATH = "/etc/secrets/GOOGLE_SHEETS_CREDENTIALS_FILE"; // Ruta en Render
 
-// 📌 Convertir credenciales de .env a objeto JSON y corregir saltos de línea
-const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS_PATH.replace(/\\n/g, '\n'));
+// 📌 Leer credenciales desde el archivo JSON
+let credentials;
+try {
+  credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, "utf8"));
+} catch (error) {
+  console.error("❌ Error leyendo las credenciales de Google Sheets:", error);
+  process.exit(1);
+}
 
 // ✅ Autenticación con Google Sheets API
 const auth = new google.auth.GoogleAuth({
@@ -42,7 +49,6 @@ app.post("/webhook", async (req, res) => {
     const body = req.body;
     console.log("📩 Webhook recibido:", JSON.stringify(body, null, 2));
 
-    // 📌 Validar estructura del Webhook
     if (!body.entry || !body.entry[0].changes[0].value.messages) {
       console.log("⚠️ Webhook sin mensajes. Ignorado.");
       return res.sendStatus(200);
