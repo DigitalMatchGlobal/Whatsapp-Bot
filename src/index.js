@@ -63,20 +63,22 @@ app.post("/webhook", async (req, res) => {
         console.log("📩 Webhook recibido:", JSON.stringify(req.body, null, 2));
 
         const body = req.body;
-        if (!body.object || !body.entry || !body.entry[0].changes || !body.entry[0].changes[0].value.messages) {
-            console.error("❌ Estructura inesperada del webhook");
+
+        // 🔍 Validar que contiene mensajes
+        if (!body.entry || !body.entry[0].changes || !body.entry[0].changes[0].value.messages) {
+            console.warn("⚠️ Webhook recibido sin mensajes. Probablemente sea un evento de estado.");
+            return res.sendStatus(200);
+        }
+
+        // 📩 Extraer mensaje
+        const messageData = body.entry[0].changes[0].value.messages[0];
+        if (!messageData || !messageData.from || !messageData.text) {
+            console.error("❌ Estructura inesperada del mensaje.");
             return res.sendStatus(400);
         }
 
-        const messagesArray = body.entry[0].changes[0].value.messages;
-        if (!messagesArray || messagesArray.length === 0) {
-            console.error("❌ No hay mensajes en la solicitud entrante.");
-            return res.sendStatus(400);
-        }
-
-        const message = messagesArray[0];
-        const phoneNumber = message.from;
-        const messageText = message.text?.body.trim().toLowerCase() || "";
+        const phoneNumber = messageData.from;
+        const messageText = messageData.text.body.trim().toLowerCase();
 
         console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
         await guardarConsulta(phoneNumber, messageText);
@@ -154,20 +156,6 @@ async function saveToGoogleSheets(phone, message) {
     } catch (error) {
         console.error("❌ Error al guardar en Google Sheets:", error);
     }
-}
-
-// ✅ Enviar mensaje a WhatsApp
-async function sendWhatsAppText(to, text) {
-    await axios.post(`https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`, {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: to,
-        type: "text",
-        text: { body: text.trim() },
-    }, {
-        headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
-    });
-    console.log(`✅ Mensaje enviado a ${to}`);
 }
 
 app.listen(PORT, () => console.log(`✅ Servidor corriendo en http://localhost:${PORT}`));
