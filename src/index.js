@@ -16,7 +16,6 @@ const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
 const MONGO_URI = process.env.MONGO_URI;
 const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
 
-// ✅ Cargar credenciales de Google Sheets correctamente
 let GOOGLE_SHEETS_CREDENTIALS;
 try {
     if (!process.env.GOOGLE_SHEETS_CREDENTIALS_PATH) {
@@ -29,12 +28,11 @@ try {
     process.exit(1);
 }
 
-// ✅ Conectar a MongoDB Atlas
+// ✅ Conectar a MongoDB
 mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
     .then(() => console.log("✅ Conectado a MongoDB Atlas"))
     .catch(err => console.error("❌ Error al conectar a MongoDB:", err));
 
-// ✅ Definir modelo de consultas
 const ConsultaSchema = new mongoose.Schema({
     usuario: String,
     mensaje: String,
@@ -64,9 +62,9 @@ app.post("/webhook", async (req, res) => {
 
         const body = req.body;
 
-        // 🔍 Validar que contiene mensajes
+        // 🔍 Validar que contiene mensajes y no eventos de estado
         if (!body.entry || !body.entry[0].changes || !body.entry[0].changes[0].value.messages) {
-            console.warn("⚠️ Webhook recibido sin mensajes. Probablemente sea un evento de estado.");
+            console.warn("⚠️ Webhook recibido sin mensajes. Ignorando evento.");
             return res.sendStatus(200);
         }
 
@@ -156,6 +154,20 @@ async function saveToGoogleSheets(phone, message) {
     } catch (error) {
         console.error("❌ Error al guardar en Google Sheets:", error);
     }
+}
+
+// ✅ Enviar mensaje a WhatsApp
+async function sendWhatsAppText(to, text) {
+    await axios.post(`https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`, {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "text",
+        text: { body: text.trim() },
+    }, {
+        headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+    });
+    console.log(`✅ Mensaje enviado a ${to}`);
 }
 
 app.listen(PORT, () => console.log(`✅ Servidor corriendo en http://localhost:${PORT}`));
