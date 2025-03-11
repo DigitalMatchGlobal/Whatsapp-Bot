@@ -122,6 +122,23 @@ async function writeToSheet(phone, name, message) {
     }
 }
 
+// ✅ Enviar mensaje de WhatsApp
+async function sendWhatsAppText(to, text) {
+    const data = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to,
+        type: "text",
+        text: { body: text.trim() }
+    };
+    await axios.post(
+        `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
+        data,
+        { headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" } }
+    );
+    console.log(`✅ Mensaje enviado a ${to}`);
+}
+
 // ✅ Webhook de WhatsApp con flujo conversacional
 app.post("/webhook", async (req, res) => {
     try {
@@ -136,7 +153,6 @@ app.post("/webhook", async (req, res) => {
         console.log(`📩 Mensaje recibido de ${name} (${phone}): ${text}`);
         await guardarConsulta(phone, text);
         await writeToSheet(phone, name, text);
-
         await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Obtener información sobre nuestros servicios\n3️⃣ Hablar con un representante");
 
         res.sendStatus(200);
