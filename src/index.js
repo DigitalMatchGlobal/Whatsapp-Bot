@@ -1,122 +1,68 @@
-require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
-const axios = require("axios");
-const mongoose = require("mongoose");
 const { GoogleSpreadsheet } = require("google-spreadsheet");
+const { JWT } = require("google-auth-library");
+const bodyParser = require("body-parser");
+const axios = require("axios");
+require("dotenv").config();
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json());
 
-const PORT = process.env.PORT || 3000;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "digitalmatch";
-const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-const WHATSAPP_PHONE_ID = process.env.WHATSAPP_PHONE_ID;
-const MONGO_URI = process.env.MONGO_URI;
+// Configuración de Google Sheets
 const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
+const GOOGLE_SHEETS_CREDENTIALS = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS);
 
-let GOOGLE_SHEETS_CREDENTIALS;
-try {
-    if (!process.env.GOOGLE_SHEETS_CREDENTIALS_PATH) {
-        throw new Error("GOOGLE_SHEETS_CREDENTIALS_PATH no está definido en las variables de entorno.");
+const doc = new GoogleSpreadsheet(GOOGLE_SHEETS_ID);
+
+async function saveToGoogleSheets(phone, message) {
+    try {
+        console.log("📝 Intentando guardar en Google Sheets...");
+        const auth = new JWT({
+            email: GOOGLE_SHEETS_CREDENTIALS.client_email,
+            key: GOOGLE_SHEETS_CREDENTIALS.private_key,
+            scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+        });
+        
+        await doc.useServiceAccountAuth(auth);
+        await doc.loadInfo();
+        const sheet = doc.sheetsByIndex[0];
+
+        await sheet.addRow({
+            Telefono: phone,
+            Mensaje: message,
+            Fecha: new Date().toLocaleString()
+        });
+
+        console.log("✅ Consulta guardada en Google Sheets");
+    } catch (error) {
+        console.error("❌ Error al guardar en Google Sheets:", error);
     }
-    GOOGLE_SHEETS_CREDENTIALS = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS_PATH);
-    console.log("✅ Credenciales de Google Sheets cargadas correctamente");
-} catch (error) {
-    console.error("❌ Error al cargar las credenciales de Google Sheets:", error.message);
-    process.exit(1);
 }
 
-// ✅ Conectar a MongoDB
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log("✅ Conectado a MongoDB Atlas"))
-    .catch(err => console.error("❌ Error al conectar a MongoDB:", err));
-
-const ConsultaSchema = new mongoose.Schema({
-    usuario: String,
-    mensaje: String,
-    fecha: { type: Date, default: Date.now }
-});
-const Consulta = mongoose.model("Consulta", ConsultaSchema);
-
-const userState = {};
-const faqResponses = {
-    "precio": "Los precios dependen del tipo de automatización que necesites. Más info: https://digitalmatchglobal.com/reuniones",
-    "soporte": "Sí, ofrecemos soporte técnico. Detalles: https://digitalmatchglobal.com/soporte",
-    "países": "Trabajamos en Latinoamérica y España. Contacto: info@digitalmatchglobal.com"
-};
-
-// ✅ Webhook de verificación
-app.get("/webhook", (req, res) => {
-    if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === VERIFY_TOKEN) {
-        return res.status(200).send(req.query["hub.challenge"]);
-    }
-    return res.sendStatus(403);
-});
-
-// ✅ Webhook para mensajes entrantes
+// Endpoint para el webhook de WhatsApp
 app.post("/webhook", async (req, res) => {
     try {
-        console.log("📩 Webhook recibido:", JSON.stringify(req.body, null, 2));
-
         const body = req.body;
 
-        // 🔍 Validar que contiene mensajes y no eventos de estado
-        if (!body.entry || !body.entry[0].changes || !body.entry[0].changes[0].value.messages) {
-            console.warn("⚠️ Webhook recibido sin mensajes. Ignorando evento.");
-            return res.sendStatus(200);
-        }
-
-        // 📩 Extraer mensaje
-        const messageData = body.entry[0].changes[0].value.messages[0];
-        if (!messageData || !messageData.from || !messageData.text) {
-            console.error("❌ Estructura inesperada del mensaje.");
+        if (!body.object || !body.entry) {
             return res.sendStatus(400);
         }
 
-        const phoneNumber = messageData.from;
-        const messageText = messageData.text.body.trim().toLowerCase();
+        for (let entry of body.entry) {
+            for (let change of entry.changes) {
+                if (change.value.messages) {
+                    const message = change.value.messages[0];
+                    const phoneNumber = message.from;
+                    const messageText = message.text?.body.trim() || "";
 
-        console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
-        await guardarConsulta(phoneNumber, messageText);
+                    console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
 
-        if (faqResponses[messageText]) {
-            await sendWhatsAppText(phoneNumber, faqResponses[messageText]);
-            return res.sendStatus(200);
-        }
-
-        if (userState[phoneNumber] === "inicio" && !["1", "2", "3"].includes(messageText)) {
-            await sendWhatsAppText(phoneNumber, "Por favor, responde con un número de opción (1, 2 o 3). 🙏");
-            return res.sendStatus(200);
-        }
-
-        if (messageText === "hola") {
-            if (userState[phoneNumber]) {
-                await sendWhatsAppText(phoneNumber, "Ya estamos conversando. Si deseas reiniciar la consulta, escribe 'Reiniciar'.");
-            } else {
-                userState[phoneNumber] = "inicio";
-                await sendWhatsAppText(phoneNumber, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Obtener información\n3️⃣ Hablar con un representante");
+                    // Guardar en Google Sheets
+                    await saveToGoogleSheets(phoneNumber, messageText);
+                } else {
+                    console.log("⚠️ Webhook recibido sin mensajes. Ignorando evento.");
+                }
             }
-            return res.sendStatus(200);
-        }
-
-        if (messageText === "3") {
-            await sendWhatsAppText(phoneNumber, "¡Entendido! Un representante se pondrá en contacto contigo. Si deseas, envíanos tu email para más información.");
-        } else if (messageText === "2") {
-            await sendWhatsAppText(phoneNumber, "Para más información, visita: https://digitalmatchglobal.com 📍");
-        } else if (messageText === "1") {
-            userState[phoneNumber] = "automatizar";
-            await sendWhatsAppText(phoneNumber, "¿En qué área necesitas automatización?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
-        } else if (userState[phoneNumber] === "automatizar" && ["1", "2", "3", "4", "5"].includes(messageText)) {
-            await sendWhatsAppText(phoneNumber, "Describe en pocas palabras el proceso que quieres automatizar. 📝");
-            userState[phoneNumber] = "esperando_descripcion";
-        } else if (userState[phoneNumber] === "esperando_descripcion") {
-            await saveToGoogleSheets(phoneNumber, messageText);
-            await sendWhatsAppText(phoneNumber, "¡Gracias! Registramos tu solicitud. Un representante te contactará en breve. ✅");
-            delete userState[phoneNumber];
-        } else {
-            await sendWhatsAppText(phoneNumber, "No entendí tu respuesta. Si necesitas ayuda, escribe 'Hola' para comenzar. 🤖");
         }
 
         res.sendStatus(200);
@@ -126,48 +72,7 @@ app.post("/webhook", async (req, res) => {
     }
 });
 
-// ✅ Guardar en MongoDB
-async function guardarConsulta(usuario, mensaje) {
-    try {
-        await new Consulta({ usuario, mensaje }).save();
-        console.log("✅ Consulta guardada en MongoDB");
-    } catch (err) {
-        console.error("❌ Error al guardar consulta:", err);
-    }
-}
-
-// ✅ Guardar en Google Sheets
-async function saveToGoogleSheets(phone, message) {
-    try {
-        const doc = new GoogleSpreadsheet(GOOGLE_SHEETS_ID);
-        await doc.useServiceAccountAuth(GOOGLE_SHEETS_CREDENTIALS);
-        await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
-
-        await sheet.addRow({ 
-            Telefono: phone, 
-            Mensaje: message, 
-            Fecha: new Date().toLocaleString() 
-        });
-
-        console.log("✅ Consulta guardada en Google Sheets");
-    } catch (error) {
-        console.error("❌ Error al guardar en Google Sheets:", error);
-    }
-}
-
-// ✅ Enviar mensaje a WhatsApp
-async function sendWhatsAppText(to, text) {
-    await axios.post(`https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`, {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: to,
-        type: "text",
-        text: { body: text.trim() },
-    }, {
-        headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
-    });
-    console.log(`✅ Mensaje enviado a ${to}`);
-}
-
-app.listen(PORT, () => console.log(`✅ Servidor corriendo en http://localhost:${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
+});
