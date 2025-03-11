@@ -20,6 +20,7 @@ const MONGO_URI = process.env.MONGO_URI;
 const API_KEY = process.env.API_KEY || "supersecreta";
 const SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
 const CREDENTIALS_PATH = process.env.GOOGLE_SHEETS_CREDENTIALS_FILE || "/etc/secrets/GOOGLE_SHEETS_CREDENTIALS_FILE";
+const userState = {}; // Estado de conversación por usuario
 
 // ✅ Conectar a MongoDB Atlas
 mongoose.connect(MONGO_URI)
@@ -47,27 +48,21 @@ const auth = new google.auth.GoogleAuth({ credentials, scopes: ["https://www.goo
 const sheets = google.sheets({ version: "v4", auth });
 const SHEET_NAME = "ListadoConsultas";
 
-// 📌 Middleware para verificar API Key
-const verificarAPIKey = (req, res, next) => {
-    const apiKey = req.headers["x-api-key"];
-    if (!apiKey || apiKey !== API_KEY) {
-        return res.status(403).json({ success: false, message: "Acceso denegado. API Key incorrecta." });
-    }
-    next();
-};
-
-// 📌 Guardar consulta en MongoDB
-async function guardarConsulta(usuario, mensaje) {
+// 📌 Obtener datos de la hoja
+async function getSheetData() {
     try {
-        const nuevaConsulta = new Consulta({ usuario, mensaje });
-        await nuevaConsulta.save();
-        console.log("✅ Consulta guardada en MongoDB");
-    } catch (err) {
-        console.error("❌ Error al guardar consulta:", err);
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SHEETS_ID,
+            range: `${SHEET_NAME}!A:G`,
+        });
+        return response.data.values || [];
+    } catch (error) {
+        console.error("❌ Error obteniendo datos de Google Sheets:", error);
+        return [];
     }
 }
 
-// 📌 Guardar en Google Sheets
+// 📌 Guardar en Google Sheets agrupando mensajes
 async function writeToSheet(phone, name, message) {
     const now = new Date();
     const montevideoTime = new Intl.DateTimeFormat("es-UY", {
@@ -84,39 +79,51 @@ async function writeToSheet(phone, name, message) {
     const dateParts = formattedDateTime.split(" ");
     const today = dateParts[0];
     const currentTime = dateParts[1];
+    const sheetData = await getSheetData();
 
-    try {
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: SHEETS_ID,
-            range: `${SHEET_NAME}!A:G`,
-            valueInputOption: "RAW",
-            insertDataOption: "INSERT_ROWS",
-            requestBody: { values: [[phone, name, today, message, currentTime, currentTime, 1]] }
-        });
-        console.log("✅ Consulta guardada en Google Sheets");
-    } catch (error) {
-        console.error("❌ Error escribiendo en Sheets:", error);
+    let userRow = -1;
+    for (let i = 1; i < sheetData.length; i++) {
+        if (sheetData[i][0] === phone && sheetData[i][2] === today) {
+            userRow = i + 1;
+            break;
+        }
+    }
+
+    if (userRow !== -1) {
+        const existingMessage = sheetData[userRow - 1][3] || "";
+        const updatedMessage = existingMessage + "\n" + message;
+        let messageCount = parseInt(sheetData[userRow - 1][6] || "1", 10) + 1;
+        let firstMessageTime = sheetData[userRow - 1][4] || currentTime;
+        let lastMessageTime = currentTime;
+
+        try {
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SHEETS_ID,
+                range: `${SHEET_NAME}!C${userRow}:G${userRow}`,
+                valueInputOption: "RAW",
+                requestBody: { values: [[today, updatedMessage, firstMessageTime, lastMessageTime, messageCount]] },
+            });
+            console.log(`✅ Mensaje agregado a la fila ${userRow}`);
+        } catch (error) {
+            console.error("❌ Error actualizando fila en Sheets:", error);
+        }
+    } else {
+        try {
+            await sheets.spreadsheets.values.append({
+                spreadsheetId: SHEETS_ID,
+                range: `${SHEET_NAME}!A:G`,
+                valueInputOption: "RAW",
+                insertDataOption: "INSERT_ROWS",
+                requestBody: { values: [[phone, name, today, message, currentTime, currentTime, 1]] },
+            });
+            console.log("✅ Nuevo mensaje registrado en Google Sheets");
+        } catch (error) {
+            console.error("❌ Error escribiendo en Sheets:", error);
+        }
     }
 }
 
-// 📌 Enviar mensaje de WhatsApp
-async function sendWhatsAppText(to, text) {
-    const data = {
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to,
-        type: "text",
-        text: { body: text.trim() }
-    };
-    await axios.post(
-        `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
-        data,
-        { headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" } }
-    );
-    console.log(`✅ Mensaje enviado a ${to}`);
-}
-
-// 📌 Webhook de WhatsApp
+// ✅ Webhook de WhatsApp con flujo conversacional
 app.post("/webhook", async (req, res) => {
     try {
         const body = req.body;
@@ -131,7 +138,7 @@ app.post("/webhook", async (req, res) => {
         await guardarConsulta(phone, text);
         await writeToSheet(phone, name, text);
         
-        await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Información sobre nuestros servicios\n3️⃣ Hablar con un representante");
+        await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Obtener información sobre nuestros servicios\n3️⃣ Hablar con un representante");
         
         res.sendStatus(200);
     } catch (error) {
