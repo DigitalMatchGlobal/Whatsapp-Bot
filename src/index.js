@@ -99,6 +99,23 @@ async function writeToSheet(phone, name, message) {
     }
 }
 
+// 📌 Enviar mensaje de WhatsApp
+async function sendWhatsAppText(to, text) {
+    const data = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to,
+        type: "text",
+        text: { body: text.trim() }
+    };
+    await axios.post(
+        `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_ID}/messages`,
+        data,
+        { headers: { Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" } }
+    );
+    console.log(`✅ Mensaje enviado a ${to}`);
+}
+
 // 📌 Webhook de WhatsApp
 app.post("/webhook", async (req, res) => {
     try {
@@ -113,32 +130,13 @@ app.post("/webhook", async (req, res) => {
         console.log(`📩 Mensaje recibido de ${name} (${phone}): ${text}`);
         await guardarConsulta(phone, text);
         await writeToSheet(phone, name, text);
-
-        if (text === "hola") {
-            await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Información sobre nuestros servicios\n3️⃣ Hablar con un representante");
-        } else {
-            await sendWhatsAppText(phone, "No entendí tu respuesta. Escribe 'Hola' para comenzar.");
-        }
-
+        
+        await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Información sobre nuestros servicios\n3️⃣ Hablar con un representante");
+        
         res.sendStatus(200);
     } catch (error) {
         console.error("❌ Error al procesar el mensaje:", error);
         res.sendStatus(500);
-    }
-});
-
-// 📌 Endpoint para obtener consultas con paginación
-app.get("/consultas", verificarAPIKey, async (req, res) => {
-    try {
-        const { page = 1, limit = 10 } = req.query;
-        const consultas = await Consulta.find()
-            .sort({ fecha: -1 })
-            .limit(parseInt(limit))
-            .skip((parseInt(page) - 1) * parseInt(limit));
-        res.json({ success: true, data: consultas });
-    } catch (error) {
-        console.error("❌ Error al obtener consultas:", error);
-        res.status(500).json({ success: false, message: "Error al obtener las consultas" });
     }
 });
 
