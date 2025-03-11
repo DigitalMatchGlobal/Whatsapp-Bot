@@ -38,6 +38,17 @@ const ConsultaSchema = new mongoose.Schema({
 });
 const Consulta = mongoose.model("Consulta", ConsultaSchema);
 
+// 📌 Guardar consulta en MongoDB
+async function guardarConsulta(usuario, mensaje) {
+    try {
+        const nuevaConsulta = new Consulta({ usuario, mensaje });
+        await nuevaConsulta.save();
+        console.log("✅ Consulta guardada en MongoDB");
+    } catch (err) {
+        console.error("❌ Error al guardar consulta:", err);
+    }
+}
+
 // 📌 Verificar credenciales de Google Sheets
 if (!fs.existsSync(CREDENTIALS_PATH)) {
     console.error("❌ Error: No se encontró el archivo de credenciales en:", CREDENTIALS_PATH);
@@ -65,25 +76,13 @@ async function getSheetData() {
 // 📌 Guardar en Google Sheets agrupando mensajes
 async function writeToSheet(phone, name, message) {
     const now = new Date();
-    const montevideoTime = new Intl.DateTimeFormat("es-UY", {
-        timeZone: "America/Montevideo",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-    }).format(now);
-
-    const formattedDateTime = montevideoTime.replace(",", "");
-    const dateParts = formattedDateTime.split(" ");
-    const today = dateParts[0];
-    const currentTime = dateParts[1];
+    const montevideoTime = now.toLocaleString("es-UY", { timeZone: "America/Montevideo" });
+    const [date, time] = montevideoTime.split(", ");
     const sheetData = await getSheetData();
 
     let userRow = -1;
     for (let i = 1; i < sheetData.length; i++) {
-        if (sheetData[i][0] === phone && sheetData[i][2] === today) {
+        if (sheetData[i][0] === phone && sheetData[i][2] === date) {
             userRow = i + 1;
             break;
         }
@@ -93,15 +92,15 @@ async function writeToSheet(phone, name, message) {
         const existingMessage = sheetData[userRow - 1][3] || "";
         const updatedMessage = existingMessage + "\n" + message;
         let messageCount = parseInt(sheetData[userRow - 1][6] || "1", 10) + 1;
-        let firstMessageTime = sheetData[userRow - 1][4] || currentTime;
-        let lastMessageTime = currentTime;
+        let firstMessageTime = sheetData[userRow - 1][4] || time;
+        let lastMessageTime = time;
 
         try {
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SHEETS_ID,
                 range: `${SHEET_NAME}!C${userRow}:G${userRow}`,
                 valueInputOption: "RAW",
-                requestBody: { values: [[today, updatedMessage, firstMessageTime, lastMessageTime, messageCount]] },
+                requestBody: { values: [[date, updatedMessage, firstMessageTime, lastMessageTime, messageCount]] },
             });
             console.log(`✅ Mensaje agregado a la fila ${userRow}`);
         } catch (error) {
@@ -114,7 +113,7 @@ async function writeToSheet(phone, name, message) {
                 range: `${SHEET_NAME}!A:G`,
                 valueInputOption: "RAW",
                 insertDataOption: "INSERT_ROWS",
-                requestBody: { values: [[phone, name, today, message, currentTime, currentTime, 1]] },
+                requestBody: { values: [[phone, name, date, message, time, time, 1]] },
             });
             console.log("✅ Nuevo mensaje registrado en Google Sheets");
         } catch (error) {
@@ -137,9 +136,9 @@ app.post("/webhook", async (req, res) => {
         console.log(`📩 Mensaje recibido de ${name} (${phone}): ${text}`);
         await guardarConsulta(phone, text);
         await writeToSheet(phone, name, text);
-        
+
         await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Obtener información sobre nuestros servicios\n3️⃣ Hablar con un representante");
-        
+
         res.sendStatus(200);
     } catch (error) {
         console.error("❌ Error al procesar el mensaje:", error);
