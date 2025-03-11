@@ -154,33 +154,38 @@ app.post("/webhook", async (req, res) => {
         await guardarConsulta(phone, text);
         await writeToSheet(phone, name, text);
 
-        if (text === "hola") {
-            userState[phone] = "inicio";
-            await sendWhatsAppText(phone, "¡Hola! ¿Cómo puedo ayudarte?\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Hablar con un representante");
-            return res.sendStatus(200);
-        }
-
-        if (userState[phone] === "inicio") {
-            if (text === "1") {
-                userState[phone] = "esperando_area";
-                await sendWhatsAppText(phone, "¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
-            } else if (text === "2") {
-                await sendWhatsAppText(phone, "Visita nuestro sitio web: https://digitalmatchglobal.com");
-                delete userState[phone];
-            } else if (text === "3") {
-                userState[phone] = "esperando_email";
-                await sendWhatsAppText(phone, "Por favor, envíame tu email para que podamos contactarte.");
-            }
-            return res.sendStatus(200);
-        }
-
-        if (userState[phone] === "esperando_email" && text.includes("@")) {
-            await sendWhatsAppText(phone, `Gracias, te contactaremos a ${text}.`);
+        if (text === "salir") {
             delete userState[phone];
+            await sendWhatsAppText(phone, "La conversación ha sido reiniciada. Escribe 'Hola' para comenzar de nuevo.");
             return res.sendStatus(200);
         }
 
-        await sendWhatsAppText(phone, "No entendí tu respuesta. Escribe 'Hola' para comenzar.");
+        if (!userState[phone]) userState[phone] = "inicio";
+
+        switch (userState[phone]) {
+            case "inicio":
+                await sendWhatsAppText(phone, "¡Hola! Soy tu asistente virtual. ¿Cómo puedo ayudarte?\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Hablar con un representante\nEscribe 'Salir' para reiniciar en cualquier momento.");
+                userState[phone] = "menu_principal";
+                break;
+
+            case "menu_principal":
+                if (["1", "2", "3"].includes(text)) {
+                    if (text === "1") {
+                        userState[phone] = "esperando_area";
+                        await sendWhatsAppText(phone, "¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
+                    } else if (text === "2") {
+                        await sendWhatsAppText(phone, "Visita nuestro sitio web: https://digitalmatchglobal.com");
+                        delete userState[phone];
+                    } else if (text === "3") {
+                        userState[phone] = "esperando_email";
+                        await sendWhatsAppText(phone, "Por favor, envíame tu email para que podamos contactarte.");
+                    }
+                } else {
+                    await sendWhatsAppText(phone, "Por favor, selecciona una opción válida (1, 2 o 3). Escribe 'Salir' para reiniciar.");
+                }
+                break;
+        }
+
         res.sendStatus(200);
     } catch (error) {
         console.error("❌ Error al procesar el mensaje:", error);
