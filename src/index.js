@@ -153,8 +153,34 @@ app.post("/webhook", async (req, res) => {
         console.log(`📩 Mensaje recibido de ${name} (${phone}): ${text}`);
         await guardarConsulta(phone, text);
         await writeToSheet(phone, name, text);
-        await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas?\n1️⃣ Automatizar procesos\n2️⃣ Obtener información sobre nuestros servicios\n3️⃣ Hablar con un representante");
 
+        if (text === "hola") {
+            userState[phone] = "inicio";
+            await sendWhatsAppText(phone, "¡Hola! ¿Cómo puedo ayudarte?\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Hablar con un representante");
+            return res.sendStatus(200);
+        }
+
+        if (userState[phone] === "inicio") {
+            if (text === "1") {
+                userState[phone] = "esperando_area";
+                await sendWhatsAppText(phone, "¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
+            } else if (text === "2") {
+                await sendWhatsAppText(phone, "Visita nuestro sitio web: https://digitalmatchglobal.com");
+                delete userState[phone];
+            } else if (text === "3") {
+                userState[phone] = "esperando_email";
+                await sendWhatsAppText(phone, "Por favor, envíame tu email para que podamos contactarte.");
+            }
+            return res.sendStatus(200);
+        }
+
+        if (userState[phone] === "esperando_email" && text.includes("@")) {
+            await sendWhatsAppText(phone, `Gracias, te contactaremos a ${text}.`);
+            delete userState[phone];
+            return res.sendStatus(200);
+        }
+
+        await sendWhatsAppText(phone, "No entendí tu respuesta. Escribe 'Hola' para comenzar.");
         res.sendStatus(200);
     } catch (error) {
         console.error("❌ Error al procesar el mensaje:", error);
