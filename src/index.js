@@ -1,78 +1,66 @@
 const express = require("express");
-const { GoogleSpreadsheet } = require("google-spreadsheet");
-const { JWT } = require("google-auth-library");
 const bodyParser = require("body-parser");
-const axios = require("axios");
+const { google } = require("googleapis");
+const { WebhookClient } = require("dialogflow-fulfillment");
 require("dotenv").config();
 
 const app = express();
 app.use(bodyParser.json());
 
-// Configuración de Google Sheets
-const GOOGLE_SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
-const GOOGLE_SHEETS_CREDENTIALS = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS);
+const SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
+const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS);
 
-const doc = new GoogleSpreadsheet(GOOGLE_SHEETS_ID);
+// Autenticación con Google Sheets
+const auth = new google.auth.GoogleAuth({
+  credentials: credentials,
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
+const sheets = google.sheets({ version: "v4", auth });
 
-async function saveToGoogleSheets(phone, message) {
-    try {
-        console.log("📝 Intentando guardar en Google Sheets...");
-        const auth = new JWT({
-            email: GOOGLE_SHEETS_CREDENTIALS.client_email,
-            key: GOOGLE_SHEETS_CREDENTIALS.private_key,
-            scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-        });
-        
-        await doc.useServiceAccountAuth(auth);
-        await doc.loadInfo();
-        const sheet = doc.sheetsByIndex[0];
-
-        await sheet.addRow({
-            Telefono: phone,
-            Mensaje: message,
-            Fecha: new Date().toLocaleString()
-        });
-
-        console.log("✅ Consulta guardada en Google Sheets");
-    } catch (error) {
-        console.error("❌ Error al guardar en Google Sheets:", error);
-    }
+// Función para agregar una fila a Google Sheets
+async function writeToSheet(phone, message) {
+  const date = new Date().toISOString();
+  try {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEETS_ID,
+      range: "Sheet1!A:C",
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      resource: { values: [[phone, message, date]] },
+    });
+    console.log("✅ Datos escritos en Google Sheets");
+  } catch (error) {
+    console.error("❌ Error escribiendo en Sheets:", error);
+  }
 }
 
-// Endpoint para el webhook de WhatsApp
+// Webhook de WhatsApp
 app.post("/webhook", async (req, res) => {
-    try {
-        const body = req.body;
+  try {
+    const body = req.body;
+    console.log("📩 Webhook recibido:", JSON.stringify(body, null, 2));
 
-        if (!body.object || !body.entry) {
-            return res.sendStatus(400);
-        }
-
-        for (let entry of body.entry) {
-            for (let change of entry.changes) {
-                if (change.value.messages) {
-                    const message = change.value.messages[0];
-                    const phoneNumber = message.from;
-                    const messageText = message.text?.body.trim() || "";
-
-                    console.log(`📩 Mensaje recibido de ${phoneNumber}: ${messageText}`);
-
-                    // Guardar en Google Sheets
-                    await saveToGoogleSheets(phoneNumber, messageText);
-                } else {
-                    console.log("⚠️ Webhook recibido sin mensajes. Ignorando evento.");
-                }
-            }
-        }
-
-        res.sendStatus(200);
-    } catch (error) {
-        console.error("❌ Error al procesar mensaje:", error);
-        res.sendStatus(500);
+    if (!body.entry || !body.entry[0].changes[0].value.messages) {
+      console.log("⚠️ Webhook sin mensajes. Ignorado.");
+      return res.sendStatus(200);
     }
+
+    const message = body.entry[0].changes[0].value.messages[0];
+    const phone = message.from;
+    const text = message.text.body;
+
+    console.log(`📩 Mensaje recibido de ${phone}: ${text}`);
+
+    // Guardar en Google Sheets
+    await writeToSheet(phone, text);
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error("❌ Error procesando webhook:", error);
+    res.sendStatus(500);
+  }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
+app.listen(3000, () => {
+  console.log("✅ Servidor corriendo en http://localhost:3000");
 });
