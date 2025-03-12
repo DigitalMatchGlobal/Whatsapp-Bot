@@ -81,6 +81,20 @@ const predefinedResponses = {
 };
 
 
+// 🔹 Detección de intención basada en palabras clave
+function detectarIntencion(text) {
+    const preguntasPrecio = ["precio", "costo", "cuánto cuesta", "que precio tiene"];
+    const preguntasSoporte = ["soporte", "tienen soporte", "ayuda técnica"];
+    const preguntasDuracion = ["cuánto tiempo", "duración", "tiempo de implementación"];
+    const preguntasIntegraciones = ["integraciones", "conectividad", "API"];
+
+    if (preguntasPrecio.some(p => text.includes(p))) return "precio";
+    if (preguntasSoporte.some(p => text.includes(p))) return "soporte";
+    if (preguntasDuracion.some(p => text.includes(p))) return "duración";
+    if (preguntasIntegraciones.some(p => text.includes(p))) return "integraciones";
+    return null;
+}
+
 
 // ✅ Conectar a MongoDB Atlas
 mongoose.connect(MONGO_URI)
@@ -198,10 +212,11 @@ app.post("/webhook", async (req, res) => {
         let contexto = "";
         let estado = userState[phone] || "inicio";
 
-        // Respuestas predefinidas
-        if (predefinedResponses[text]) {
-            await sendWhatsAppText(phone, predefinedResponses[text]);
-            return res.sendStatus(200);
+        // 🔹 Detección de intención
+        const intencion = detectarIntencion(text);
+        if (intencion) {
+            await sendWhatsAppText(phone, predefinedResponses[intencion]);
+            return res.sendStatus(200); // No interfiere con el flujo
         }
 
         switch (estado) {
@@ -230,57 +245,7 @@ app.post("/webhook", async (req, res) => {
                     await sendWhatsAppText(phone, "Por favor, selecciona una opción válida (1, 2 o 3). Escribe 'Salir' para reiniciar.");
                 }
                 break;
-
-            case "esperando_area":
-                if (["1", "2", "3", "4", "5"].includes(text)) {
-                    userState[phone] = "esperando_tipo_automatizacion";
-                    await sendWhatsAppText(phone, "¡Genial! Ahora dime qué tipo de automatización necesitas:\n1️⃣ CRM\n2️⃣ Gestión de clientes\n3️⃣ Análisis de datos");
-                    contexto = areaMap[text];
-                    estado = "esperando_tipo_automatizacion";
-                } else {
-                    await sendWhatsAppText(phone, "Por favor, selecciona un número válido entre 1 y 5.");
-                }
-                break;
-
-            case "esperando_tipo_automatizacion":
-                if (["1", "2", "3"].includes(text)) {
-                    await sendWhatsAppText(phone, "¡Gracias! Un asesor se pondrá en contacto contigo pronto.");
-                    delete userState[phone];
-                    contexto = `Automatización seleccionada: ${text}`;
-                    estado = "Automatización Confirmada";
-                } else {
-                    await sendWhatsAppText(phone, "Por favor, selecciona un número válido entre 1 y 3.");
-                }
-                break;
-
-            case "esperando_email":
-                if (text.includes("@")) {
-                    await sendWhatsAppText(phone, "¡Gracias! Nos pondremos en contacto contigo pronto.");
-                    delete userState[phone];
-                    contexto = "Email Recibido";
-                    estado = "Email Confirmado";
-                } else {
-                    await sendWhatsAppText(phone, "Por favor, ingresa un email válido.");
-                }
-                break;
-
-            case "esperando_presupuesto":
-                await sendWhatsAppText(phone, `¡Gracias! Vamos a analizar tu requerimiento para enviarte un presupuesto detallado.`);
-                delete userState[phone];
-                contexto = "Solicitud de Presupuesto";
-                estado = "Presupuesto Enviado";
-                break;
-
-            case "esperando_seguimiento":
-                await sendWhatsAppText(phone, "Estamos revisando tu consulta. Pronto recibirás una actualización.");
-                delete userState[phone];
-                contexto = "Solicitud de Seguimiento";
-                estado = "Seguimiento en Proceso";
-                break;
         }
-
-        await guardarConsulta(phone, text, contexto, estado);
-        await writeToSheet(phone, name, text, contexto, estado);
 
         res.sendStatus(200);
     } catch (error) {
