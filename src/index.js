@@ -206,7 +206,7 @@ app.post("/webhook", async (req, res) => {
 
         switch (estado) {
             case "inicio":
-                await sendWhatsAppText(phone, "¡Hola! Soy tu asistente virtual. ¿Cómo puedo ayudarte?\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Hablar con un representante\nEscribe 'Salir' para reiniciar en cualquier momento.");
+                await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas? Responde con el número de la opción:\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Hablar con un representante\nEscribe 'Salir' para reiniciar en cualquier momento.");
                 userState[phone] = "menu_principal";
                 contexto = "Inicio de Conversación";
                 estado = "menu_principal";
@@ -215,15 +215,15 @@ app.post("/webhook", async (req, res) => {
             case "menu_principal":
                 if (text === "1") {
                     userState[phone] = "esperando_area";
-                    await sendWhatsAppText(phone, "¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
+                    await sendWhatsAppText(phone, "¡Genial! ¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
                     contexto = "Selección de Automatización";
                     estado = "esperando_area";
                 } else if (text === "2") {
-                    await sendWhatsAppText(phone, "Visita nuestro sitio web: https://digitalmatchglobal.com");
+                    await sendWhatsAppText(phone, "Ofrecemos soluciones de automatización en diferentes áreas como ventas, marketing, finanzas y atención al cliente. Para más detalles, visita nuestro sitio web: https://digitalmatchglobal.com");
                     delete userState[phone];
                 } else if (text === "3") {
                     userState[phone] = "esperando_email";
-                    await sendWhatsAppText(phone, "Por favor, envíame tu email para que podamos contactarte.");
+                    await sendWhatsAppText(phone, "¡Entendido! En breve, un representante se pondrá en contacto contigo. Adicionalmente puedes enviarnos tu email para recibir más información.");
                     contexto = "Solicitud de contacto con un representante";
                     estado = "esperando_email";
                 } else {
@@ -234,7 +234,7 @@ app.post("/webhook", async (req, res) => {
             case "esperando_area":
                 if (["1", "2", "3", "4", "5"].includes(text)) {
                     userState[phone] = "esperando_tipo_automatizacion";
-                    await sendWhatsAppText(phone, "¡Genial! Ahora dime qué tipo de automatización necesitas:\n1️⃣ CRM\n2️⃣ Gestión de clientes\n3️⃣ Análisis de datos");
+                    await sendWhatsAppText(phone, "¡Perfecto! ¿Qué problema o tarea específica te gustaría automatizar?\n1️⃣ CRM\n2️⃣ Gestión de clientes\n3️⃣ Análisis de datos");
                     contexto = areaMap[text];
                     estado = "esperando_tipo_automatizacion";
                 } else {
@@ -255,7 +255,7 @@ app.post("/webhook", async (req, res) => {
 
             case "esperando_email":
                 if (text.includes("@")) {
-                    await sendWhatsAppText(phone, "¡Gracias! Nos pondremos en contacto contigo pronto.");
+                    await sendWhatsAppText(phone, "¡Entendido! En breve, un representante se pondrá en contacto contigo. Adicionalmente puedes enviarnos tu email para recibir más información.");
                     delete userState[phone];
                     contexto = "Email Recibido";
                     estado = "Email Confirmado";
