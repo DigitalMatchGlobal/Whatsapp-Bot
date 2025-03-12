@@ -358,6 +358,64 @@ app.post("/webhook", async (req, res) => {
 });
 
 
+// ✅ Middleware para verificar la API Key en endpoints protegidos
+const verificarAPIKey = (req, res, next) => {
+    const apiKey = req.headers["x-api-key"];
+    if (!apiKey || apiKey !== API_KEY) {
+        return res.status(403).json({ success: false, message: "Acceso denegado. API Key incorrecta." });
+    }
+    next();
+};
+
+// ✅ Middleware para loggear solicitudes
+app.use((req, res, next) => {
+    console.log(`📢 [${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+});
+
+// ✅ Webhook de verificación
+app.get("/webhook", (req, res) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+        return res.status(200).send(challenge);
+    } else {
+        return res.sendStatus(403);
+    }
+});
+
+
+// ✅ Endpoint para obtener consultas almacenadas con paginación y seguridad
+app.get("/consultas", verificarAPIKey, async (req, res) => {
+    try {
+        const { page = 1, limit = 10 } = req.query;
+        const consultas = await Consulta.find()
+            .sort({ fecha: -1 })
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit));
+        res.json({ success: true, data: consultas });
+    } catch (error) {
+        console.error("❌ Error al obtener consultas:", error);
+        res.status(500).json({ success: false, message: "Error al obtener las consultas" });
+    }
+});
+
+// ✅ Endpoint para eliminar consultas antiguas (mayores a X días)
+app.delete("/consultas/limpiar", verificarAPIKey, async (req, res) => {
+    try {
+        const { dias = 30 } = req.query;
+        const limiteFecha = new Date();
+        limiteFecha.setDate(limiteFecha.getDate() - dias);
+        await Consulta.deleteMany({ fecha: { $lt: limiteFecha } });
+        res.json({ success: true, message: `Consultas de más de ${dias} días eliminadas.` });
+    } catch (error) {
+        console.error("❌ Error al limpiar consultas:", error);
+        res.status(500).json({ success: false, message: "Error al limpiar consultas" });
+    }
+});
+
 
 // ✅ Iniciar el servidor
 app.listen(PORT, () => {
