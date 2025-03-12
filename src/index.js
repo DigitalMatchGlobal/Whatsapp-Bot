@@ -148,55 +148,21 @@ async function writeToSheet(phone, name, message, contexto, estado) {
     const montevideoTime = now.toLocaleString("es-UY", { timeZone: "America/Montevideo" });
     const [date, time] = montevideoTime.split(", ");
 
-    const sheetData = await getSheetData();
-    let userRow = -1;
-
-    for (let i = 1; i < sheetData.length; i++) {
-        if (sheetData[i][0] === phone && sheetData[i][2] === date) {
-            userRow = i + 1;
-            break;
-        }
-    }
-
-    if (userRow !== -1) {
-        const existingMessage = sheetData[userRow - 1][3] || "";
-        const updatedMessage = existingMessage + "\n" + message;
-        let messageCount = parseInt(sheetData[userRow - 1][8] || "1", 10) + 1;
-        let firstMessageTime = sheetData[userRow - 1][6] || time;
-        let lastMessageTime = time;
-
-        try {
-            await sheets.spreadsheets.values.update({
-                spreadsheetId: SHEETS_ID,
-                range: `${SHEET_NAME}!C${userRow}:I${userRow}`,  // Expansión de columnas para incluir todas
-                valueInputOption: "RAW",
-                requestBody: {
-                    values: [[date, updatedMessage, contexto, estado, firstMessageTime, lastMessageTime, messageCount]]
-                },
-            });
-            console.log(`✅ Mensaje agregado a la fila ${userRow}`);
-        } catch (error) {
-            console.error("❌ Error actualizando fila en Sheets:", error);
-        }
-    } else {
-        try {
-            await sheets.spreadsheets.values.append({
-                spreadsheetId: SHEETS_ID,
-                range: `${SHEET_NAME}!A:I`,  // Expansión del rango para acomodar las nuevas columnas
-                valueInputOption: "RAW",
-                insertDataOption: "INSERT_ROWS",
-                requestBody: {
-                    values: [[phone, name, date, message, contexto, estado, time, time, 1]]
-                },
-            });
-            console.log("✅ Nuevo mensaje registrado en Google Sheets");
-        } catch (error) {
-            console.error("❌ Error escribiendo en Sheets:", error);
-        }
+    try {
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: SHEETS_ID,
+            range: `${SHEET_NAME}!A:J`,  // Asegurar que hay suficiente espacio en la hoja
+            valueInputOption: "RAW",
+            insertDataOption: "INSERT_ROWS",
+            requestBody: { 
+                values: [[phone, name, date, message, contexto, estado, time, time, 1]] // Nueva fila por cada mensaje
+            }
+        });
+        console.log("✅ Nuevo mensaje registrado en Google Sheets con contexto y estado");
+    } catch (error) {
+        console.error("❌ Error escribiendo en Sheets:", error);
     }
 }
-
-
 
 
 // ✅ Enviar mensaje de WhatsApp
