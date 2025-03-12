@@ -219,14 +219,45 @@ app.post("/webhook", async (req, res) => {
         switch (estado) {
 
             default:
+                if (text.toLowerCase() === "salir") {
+                    delete userState[phone]; // Resetear el flujo
+                    await sendWhatsAppText(phone, "Has salido del flujo de automatización. Para empezar de nuevo, escribe 'Hola'.");
+            
+                } else if (text.toLowerCase() === "hola") {
+                    userState[phone] = "menu_principal";
+                    await sendWhatsAppText(phone, "¡Hola de nuevo! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n"
+                        + "¿Qué tipo de ayuda necesitas? Responde con el número de la opción:\n\n"
+                        + "1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Contactar con un asesor (WhatsApp, Correo o Videollamada)\n\n"
+                        + "Escribe 'Salir' para reiniciar en cualquier momento.");
+                
+                } else if (["ok", "okay", "gracias", "bien", "entendido"].includes(text.toLowerCase())) {
+                    // Si el usuario está dentro de un flujo, simplemente confirmamos
                     if (userState[phone]) {
-                                            // Si el usuario está en un flujo válido, pedimos que ingrese una opción válida
-                                            await sendWhatsAppText(phone, "No entendí tu mensaje. Por favor, elige una opción válida o escribe 'Salir' para volver al menú principal.");
+                        await sendWhatsAppText(phone, "¡Entendido! 😊 Si necesitas más ayuda, dime cómo puedo asistirte.");
                     } else {
-                             // Si el usuario no está en ningún flujo, le decimos que escriba "Hola"
-                            await sendWhatsAppText(phone, "No entendí tu mensaje. Para comenzar nuevamente, por favor escribe 'Hola'.");
+                        await sendWhatsAppText(phone, "Para comenzar nuevamente, escribe 'Hola'.");
                     }
-            break;
+            
+                } else if (userState[phone]) {
+                    await sendWhatsAppText(phone, "No entendí tu mensaje. Por favor, selecciona una opción válida o escribe 'Salir' para volver al menú principal.");
+                
+                } else {
+                    await sendWhatsAppText(phone, "No entendí tu mensaje. Para comenzar nuevamente, escribe 'Hola'.");
+                }
+                break;
+            
+                if (text.toLowerCase() === "salir") {
+                    delete userState[phone]; // Resetear el flujo
+                    await sendWhatsAppText(phone, "Has salido del flujo de automatización. Para empezar de nuevo, escribe 'Hola'.");
+                } else if (text.toLowerCase() === "hola") {
+                    userState[phone] = "menu_principal";
+                    await sendWhatsAppText(phone, "¡Hola de nuevo! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas? Responde con el número de la opción:\n\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Contactar con un asesor (WhatsApp, Correo o Videollamada)\n\nEscribe 'Salir' para reiniciar en cualquier momento.");
+                } else if (userState[phone]) {
+                    await sendWhatsAppText(phone, "No entendí tu mensaje. Por favor, selecciona una opción válida o escribe 'Salir' para volver al menú principal.");
+                } else {
+                    await sendWhatsAppText(phone, "No entendí tu mensaje. Para comenzar nuevamente, escribe 'Hola'.");
+                }
+                break;
 
             case "inicio":
                 await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas? Responde con el número de la opción:\n\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Contactar con un asesor (WhatsApp, Correo o Videollamada)\n\nEscribe 'Salir' para reiniciar en cualquier momento.");
@@ -241,9 +272,14 @@ app.post("/webhook", async (req, res) => {
                     await sendWhatsAppText(phone, "¡Genial! ¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente\n6️⃣ Otros");
                     contexto = "Selección de Automatización";
                     estado = "esperando_area";
+
                 } else if (text === "2") {
                     await sendWhatsAppText(phone, "Ofrecemos soluciones de automatización en diferentes áreas como ventas, marketing, finanzas y atención al cliente. Para más detalles, visita nuestro sitio web: https://digitalmatchglobal.com");
-                    delete userState[phone];
+                    // 🚀 En lugar de borrar el estado, dejamos al usuario en "info_servicios" para evitar reinicio
+                    userState[phone] = "info_servicios";
+                    contexto = "Información de servicios";
+                    estado = "info_servicios";
+
                 } else if (text === "3") {  // Contactar con un asesor
                     userState[phone] = "esperando_contacto";
                     await sendWhatsAppText(phone, "¿Cómo prefieres ser contactado?\n"
@@ -252,6 +288,11 @@ app.post("/webhook", async (req, res) => {
                         + "3️⃣ Que un asesor te envíe un email 📧");
                     contexto = "Elección de Contacto";
                     estado = "esperando_contacto";
+
+                } else if (["ok", "okay", "gracias", "bien", "entendido"].includes(text.toLowerCase())) {
+                    // ✅ No reiniciamos el flujo, solo confirmamos que puede seguir preguntando
+                    await sendWhatsAppText(phone, "¡Genial! 😊 Si necesitas más información, dime en qué puedo ayudarte.");
+
                 } else {
                     await sendWhatsAppText(phone, "Por favor, selecciona una opción válida (1, 2 o 3). Escribe 'Salir' para reiniciar.");
                 }
@@ -350,6 +391,17 @@ app.post("/webhook", async (req, res) => {
                 contexto = "Solicitud de Seguimiento";
                 estado = "Seguimiento en Proceso";
                 break;
+        
+            case "info_servicios":
+                if (["ok", "okay", "gracias", "bien", "entendido"].includes(text.toLowerCase())) {
+                    await sendWhatsAppText(phone, "¡Entendido! 😊 Si necesitas más información, dime en qué puedo ayudarte.");
+                } else {
+                    // Si el usuario pregunta otra cosa, lo redirigimos al menú principal
+                    userState[phone] = "menu_principal";
+                    await sendWhatsAppText(phone, "No entendí tu mensaje. Si necesitas más información, dime en qué puedo ayudarte o escribe 'Hola' para reiniciar.");
+                }
+                break;
+
         }
 
         await guardarConsulta(phone, text, contexto, estado);
