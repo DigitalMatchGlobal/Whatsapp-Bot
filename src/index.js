@@ -162,19 +162,51 @@ async function writeToSheet(phone, name, message, contexto, estado) {
     const montevideoTime = now.toLocaleString("es-UY", { timeZone: "America/Montevideo" });
     const [date, time] = montevideoTime.split(", ");
 
-    try {
-        await sheets.spreadsheets.values.append({
-            spreadsheetId: SHEETS_ID,
-            range: `${SHEET_NAME}!A:J`,  // Asegurar que hay suficiente espacio en la hoja
-            valueInputOption: "RAW",
-            insertDataOption: "INSERT_ROWS",
-            requestBody: { 
-                values: [[phone, name, date, message, contexto, estado, time, time, 1]] // Nueva fila por cada mensaje
-            }
-        });
-        console.log("✅ Nuevo mensaje registrado en Google Sheets con contexto y estado");
-    } catch (error) {
-        console.error("❌ Error escribiendo en Sheets:", error);
+    const sheetData = await getSheetData();
+    let userRow = -1;
+
+    for (let i = 1; i < sheetData.length; i++) {
+        if (sheetData[i][0] === phone && sheetData[i][2] === date) {
+            userRow = i + 1;
+            break;
+        }
+    }
+
+    if (userRow !== -1) {
+        const existingMessage = sheetData[userRow - 1][3] || "";
+        const updatedMessage = existingMessage + "\n" + message;
+        let messageCount = parseInt(sheetData[userRow - 1][8] || "1", 10) + 1;
+        let firstMessageTime = sheetData[userRow - 1][6] || time;
+        let lastMessageTime = time;
+
+        try {
+            await sheets.spreadsheets.values.update({
+                spreadsheetId: SHEETS_ID,
+                range: `${SHEET_NAME}!C${userRow}:I${userRow}`,  // Expansión de columnas para incluir todas
+                valueInputOption: "RAW",
+                requestBody: {
+                    values: [[date, updatedMessage, contexto, estado, firstMessageTime, lastMessageTime, messageCount]]
+                },
+            });
+            console.log(`✅ Mensaje agregado a la fila ${userRow}`);
+        } catch (error) {
+            console.error("❌ Error actualizando fila en Sheets:", error);
+        }
+    } else {
+        try {
+            await sheets.spreadsheets.values.append({
+                spreadsheetId: SHEETS_ID,
+                range: `${SHEET_NAME}!A:I`,  // Expansión del rango para acomodar las nuevas columnas
+                valueInputOption: "RAW",
+                insertDataOption: "INSERT_ROWS",
+                requestBody: {
+                    values: [[phone, name, date, message, contexto, estado, time, time, 1]]
+                },
+            });
+            console.log("✅ Nuevo mensaje registrado en Google Sheets");
+        } catch (error) {
+            console.error("❌ Error escribiendo en Sheets:", error);
+        }
     }
 }
 
@@ -227,32 +259,82 @@ app.post("/webhook", async (req, res) => {
                 estado = "menu_principal";
                 break;
 
-            case "menu_principal":
-                if (text === "1") {
-                    userState[phone] = "esperando_area";
-                    await sendWhatsAppText(phone, "¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
-                    contexto = "Selección de Automatización";
-                    estado = "esperando_area";
-                } else if (text === "2") {
-                    await sendWhatsAppText(phone, "Visita nuestro sitio web: https://digitalmatchglobal.com");
+                case "menu_principal":
+                    if (text === "1") {
+                        userState[phone] = "esperando_area";
+                        await sendWhatsAppText(phone, "¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
+                        contexto = "Selección de Automatización";
+                        estado = "esperando_area";
+                    } else if (text === "2") {
+                        await sendWhatsAppText(phone, "Visita nuestro sitio web: https://digitalmatchglobal.com");
+                        delete userState[phone];
+                    } else if (text === "3") {
+                        userState[phone] = "esperando_email";
+                        await sendWhatsAppText(phone, "Por favor, envíame tu email para que podamos contactarte.");
+                        contexto = "Solicitud de contacto con un representante";
+                        estado = "esperando_email";
+                    } else {
+                        await sendWhatsAppText(phone, "Por favor, selecciona una opción válida (1, 2 o 3). Escribe 'Salir' para reiniciar.");
+                    }
+                    break;
+    
+                case "esperando_area":
+                    if (["1", "2", "3", "4", "5"].includes(text)) {
+                        userState[phone] = "esperando_tipo_automatizacion";
+                        await sendWhatsAppText(phone, "¡Genial! Ahora dime qué tipo de automatización necesitas:\n1️⃣ CRM\n2️⃣ Gestión de clientes\n3️⃣ Análisis de datos");
+                        contexto = areaMap[text];
+                        estado = "esperando_tipo_automatizacion";
+                    } else {
+                        await sendWhatsAppText(phone, "Por favor, selecciona un número válido entre 1 y 5.");
+                    }
+                    break;
+    
+                case "esperando_tipo_automatizacion":
+                    if (["1", "2", "3"].includes(text)) {
+                        await sendWhatsAppText(phone, "¡Gracias! Un asesor se pondrá en contacto contigo pronto.");
+                        delete userState[phone];
+                        contexto = `Automatización seleccionada: ${text}`;
+                        estado = "Automatización Confirmada";
+                    } else {
+                        await sendWhatsAppText(phone, "Por favor, selecciona un número válido entre 1 y 3.");
+                    }
+                    break;
+    
+                case "esperando_email":
+                    if (text.includes("@")) {
+                        await sendWhatsAppText(phone, "¡Gracias! Nos pondremos en contacto contigo pronto.");
+                        delete userState[phone];
+                        contexto = "Email Recibido";
+                        estado = "Email Confirmado";
+                    } else {
+                        await sendWhatsAppText(phone, "Por favor, ingresa un email válido.");
+                    }
+                    break;
+    
+                case "esperando_presupuesto":
+                    await sendWhatsAppText(phone, `¡Gracias! Vamos a analizar tu requerimiento para enviarte un presupuesto detallado.`);
                     delete userState[phone];
-                } else if (text === "3") {
-                    userState[phone] = "esperando_email";
-                    await sendWhatsAppText(phone, "Por favor, envíame tu email para que podamos contactarte.");
-                    contexto = "Solicitud de contacto con un representante";
-                    estado = "esperando_email";
-                } else {
-                    await sendWhatsAppText(phone, "Por favor, selecciona una opción válida (1, 2 o 3). Escribe 'Salir' para reiniciar.");
-                }
-                break;
+                    contexto = "Solicitud de Presupuesto";
+                    estado = "Presupuesto Enviado";
+                    break;
+    
+                case "esperando_seguimiento":
+                    await sendWhatsAppText(phone, "Estamos revisando tu consulta. Pronto recibirás una actualización.");
+                    delete userState[phone];
+                    contexto = "Solicitud de Seguimiento";
+                    estado = "Seguimiento en Proceso";
+                    break;
+            }
+    
+            await guardarConsulta(phone, text, contexto, estado);
+            await writeToSheet(phone, name, text, contexto, estado);
+    
+            res.sendStatus(200);
+        } catch (error) {
+            console.error("❌ Error al procesar el mensaje:", error);
+            res.sendStatus(500);
         }
-
-        res.sendStatus(200);
-    } catch (error) {
-        console.error("❌ Error al procesar el mensaje:", error);
-        res.sendStatus(500);
-    }
-});
+    });
 
 
 
