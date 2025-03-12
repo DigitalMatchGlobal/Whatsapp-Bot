@@ -207,6 +207,20 @@ async function writeToSheet(phone, name, message, contexto, estado) {
         } catch (error) {
             console.error("❌ Error escribiendo en Sheets:", error);
         }
+        try {
+            await sheets.spreadsheets.values.append({
+                spreadsheetId: SHEETS_ID,
+                range: `${SHEET_NAME}!A:J`,  // Asegurar que hay suficiente espacio en la hoja
+                valueInputOption: "RAW",
+                insertDataOption: "INSERT_ROWS",
+                requestBody: { 
+                    values: [[phone, name, date, message, contexto, estado, time, time, 1]] // Nueva fila por cada mensaje
+                }
+            });
+            console.log("✅ Nuevo mensaje registrado en Google Sheets con contexto y estado");
+        } catch (error) {
+            console.error("❌ Error escribiendo en Sheets:", error);
+        }
     }
 }
 
