@@ -154,70 +154,55 @@ app.post("/webhook", async (req, res) => {
         await guardarConsulta(phone, text);
         await writeToSheet(phone, name, text);
 
-        // 📌 Reiniciar conversación con "Salir" o "Hola" en cualquier momento
-        if (text === "salir" || text === "hola") {
+        // Si el usuario escribe 'salir', reiniciamos la conversación
+        if (text === "salir") {
             delete userState[phone];
             await sendWhatsAppText(phone, "La conversación ha sido reiniciada. Escribe 'Hola' para comenzar de nuevo.");
             return res.sendStatus(200);
         }
 
-        // 📌 Si el usuario no tiene un estado, inicia en "inicio"
+        // Inicializar estado si es nuevo usuario
         if (!userState[phone]) userState[phone] = "inicio";
 
         switch (userState[phone]) {
             case "inicio":
-                await sendWhatsAppText(phone, "¡Hola! Soy tu asistente virtual. ¿Cómo puedo ayudarte?\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Hablar con un representante\nEscribe 'Salir' para reiniciar en cualquier momento.");
+                await sendWhatsAppText(phone, "¡Hola! Soy tu asistente virtual de Digital Match. ¿Cómo puedo ayudarte?\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Hablar con un representante\nEscribe 'Salir' para reiniciar en cualquier momento.");
                 userState[phone] = "menu_principal";
                 break;
 
             case "menu_principal":
-                if (text === "1") {
-                    userState[phone] = "esperando_area";
-                    await sendWhatsAppText(phone, "¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
-                } else if (text === "2") {
-                    await sendWhatsAppText(phone, "Visita nuestro sitio web: https://digitalmatchglobal.com");
-                    delete userState[phone]; // 🚀 Cierra la conversación
-                } else if (text === "3") {
-                    userState[phone] = "esperando_email";
-                    await sendWhatsAppText(phone, "Por favor, envíame tu email para que podamos contactarte.");
+                if (["1", "2", "3"].includes(text)) {
+                    if (text === "1") {
+                        userState[phone] = "esperando_area";
+                        await sendWhatsAppText(phone, "¿En qué área necesitas automatizar?\n1️⃣ Ventas\n2️⃣ Marketing\n3️⃣ Finanzas\n4️⃣ Operaciones\n5️⃣ Atención al cliente");
+                    } else if (text === "2") {
+                        await sendWhatsAppText(phone, "Visita nuestro sitio web: https://digitalmatchglobal.com");
+                        delete userState[phone];
+                    } else if (text === "3") {
+                        userState[phone] = "esperando_email";
+                        await sendWhatsAppText(phone, "Por favor, envíame tu email para que podamos contactarte.");
+                    }
                 } else {
                     await sendWhatsAppText(phone, "Por favor, selecciona una opción válida (1, 2 o 3). Escribe 'Salir' para reiniciar.");
                 }
                 break;
 
             case "esperando_area":
-                const areas = {
-                    "1": "Ventas",
-                    "2": "Marketing",
-                    "3": "Finanzas",
-                    "4": "Operaciones",
-                    "5": "Atención al cliente"
-                };
-                if (areas[text]) {
-                    userState[phone] = "esperando_descripcion";
-                    await sendWhatsAppText(phone, `Perfecto, trabajamos en soluciones de automatización para ${areas[text]}.\nPor favor, describe en pocas palabras qué problema o proceso deseas automatizar.`);
+                if (["1", "2", "3", "4", "5"].includes(text)) {
+                    await sendWhatsAppText(phone, "¡Gracias! Un asesor te contactará pronto para más detalles sobre la automatización en esta área.");
+                    delete userState[phone];
                 } else {
-                    await sendWhatsAppText(phone, "Por favor, elige un área válida (1, 2, 3, 4 o 5). Escribe 'Salir' para reiniciar.");
+                    await sendWhatsAppText(phone, "Por favor, selecciona un número válido entre 1 y 5.");
                 }
-                break;
-
-            case "esperando_descripcion":
-                await sendWhatsAppText(phone, "¡Gracias! Registramos tu solicitud y en breve un representante te contactará para analizar la mejor solución para ti. ✅");
-                delete userState[phone]; // 🚀 Finaliza la conversación
                 break;
 
             case "esperando_email":
                 if (text.includes("@")) {
-                    await sendWhatsAppText(phone, `¡Gracias! Te enviaremos más información a ${text}. ✅`);
-                    delete userState[phone]; // 🚀 Finaliza la conversación
+                    await sendWhatsAppText(phone, "¡Gracias! Nos pondremos en contacto contigo pronto.");
+                    delete userState[phone];
                 } else {
                     await sendWhatsAppText(phone, "Por favor, ingresa un email válido.");
                 }
-                break;
-
-            default:
-                await sendWhatsAppText(phone, "No entendí tu respuesta. Escribe 'Hola' para comenzar de nuevo.");
-                delete userState[phone]; // 🚀 Resetea estado para evitar loops
                 break;
         }
 
