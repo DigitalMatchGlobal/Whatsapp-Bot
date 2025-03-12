@@ -147,9 +147,10 @@ async function writeToSheet(phone, name, message, contexto, estado) {
     const now = new Date();
     const montevideoTime = now.toLocaleString("es-UY", { timeZone: "America/Montevideo" });
     const [date, time] = montevideoTime.split(", ");
-    const sheetData = await getSheetData();
 
+    const sheetData = await getSheetData();
     let userRow = -1;
+
     for (let i = 1; i < sheetData.length; i++) {
         if (sheetData[i][0] === phone && sheetData[i][2] === date) {
             userRow = i + 1;
@@ -159,23 +160,21 @@ async function writeToSheet(phone, name, message, contexto, estado) {
 
     if (userRow !== -1) {
         const existingMessage = sheetData[userRow - 1][3] || "";
-        const existingContext = sheetData[userRow - 1][4] || "";
-        const existingState = sheetData[userRow - 1][5] || "";
         const updatedMessage = existingMessage + "\n" + message;
-        const updatedContext = existingContext + "\n" + contexto;
-        const updatedState = existingState + "\n" + estado;
-        let messageCount = parseInt(sheetData[userRow - 1][7] || "1", 10) + 1;
+        let messageCount = parseInt(sheetData[userRow - 1][8] || "1", 10) + 1;
         let firstMessageTime = sheetData[userRow - 1][6] || time;
         let lastMessageTime = time;
 
         try {
             await sheets.spreadsheets.values.update({
                 spreadsheetId: SHEETS_ID,
-                range: `${SHEET_NAME}!C${userRow}:H${userRow}`,
+                range: `${SHEET_NAME}!C${userRow}:I${userRow}`,  // Expansión de columnas para incluir todas
                 valueInputOption: "RAW",
-                requestBody: { values: [[date, updatedMessage, updatedContext, updatedState, firstMessageTime, lastMessageTime, messageCount]] },
+                requestBody: {
+                    values: [[date, updatedMessage, contexto, estado, firstMessageTime, lastMessageTime, messageCount]]
+                },
             });
-            console.log(`✅ Mensaje agregado a la fila ${userRow} con contexto y estado`);
+            console.log(`✅ Mensaje agregado a la fila ${userRow}`);
         } catch (error) {
             console.error("❌ Error actualizando fila en Sheets:", error);
         }
@@ -183,17 +182,20 @@ async function writeToSheet(phone, name, message, contexto, estado) {
         try {
             await sheets.spreadsheets.values.append({
                 spreadsheetId: SHEETS_ID,
-                range: `${SHEET_NAME}!A:H`,
+                range: `${SHEET_NAME}!A:I`,  // Expansión del rango para acomodar las nuevas columnas
                 valueInputOption: "RAW",
                 insertDataOption: "INSERT_ROWS",
-                requestBody: { values: [[phone, name, date, message, contexto, estado, time, time, 1]] },
+                requestBody: {
+                    values: [[phone, name, date, message, contexto, estado, time, time, 1]]
+                },
             });
-            console.log("✅ Nuevo mensaje registrado en Google Sheets con contexto y estado");
+            console.log("✅ Nuevo mensaje registrado en Google Sheets");
         } catch (error) {
             console.error("❌ Error escribiendo en Sheets:", error);
         }
     }
 }
+
 
 
 
