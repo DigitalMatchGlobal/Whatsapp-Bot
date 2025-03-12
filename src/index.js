@@ -72,12 +72,12 @@ const automationDetails = {
 };
 
 const predefinedResponses = {
-    "precio": "💰 Los precios dependen del tipo de automatización que necesites. Más info: https://digitalmatchglobal.com/reuniones",
-    "soporte": "🛠️ Sí, ofrecemos soporte técnico. Detalles aquí: https://digitalmatchglobal.com/soporte",
-    "países": "🌎 Trabajamos en EEUU y Latinoamérica. Contacto: info@digitalmatchglobal.com",
-    "duración": "⏳ El tiempo de implementación depende del proceso a automatizar. Contáctanos para más detalles.",
-    "integraciones": "🔗 Nuestras soluciones pueden integrarse con diversas plataformas. Más info: https://digitalmatchglobal.com/integraciones",
-    "seguridad": "🔒 La seguridad de los datos es nuestra prioridad. Implementamos encriptación y protocolos avanzados."
+    "precio": "💰 Los precios dependen del tipo de automatización que necesites. Más info: https://digitalmatchglobal.com. Contacto: info@digitalmatchglobal.com",
+    "soporte": "🛠️ Sí, ofrecemos soporte técnico. Más info: https://digitalmatchglobal.com. Contacto: info@digitalmatchglobal.com",
+    "países": "🌎 Trabajamos en EEUU y Latinoamérica. Más info: https://digitalmatchglobal.com. Contacto: info@digitalmatchglobal.com",
+    "duración": "⏳ El tiempo de implementación depende del proceso a automatizar. Más info: https://digitalmatchglobal.com. Contacto: info@digitalmatchglobal.com",
+    "integraciones": "🔗 Nuestras soluciones pueden integrarse con diversas plataformas. Más info: https://digitalmatchglobal.com. Contacto: info@digitalmatchglobal.com",
+    "seguridad": "🔒 La seguridad de los datos es nuestra prioridad. Implementamos encriptación y protocolos avanzados. Más info: https://digitalmatchglobal.com. Contacto: info@digitalmatchglobal.com"
 };
 
 
@@ -246,19 +246,6 @@ app.post("/webhook", async (req, res) => {
                 }
                 break;
             
-                if (text.toLowerCase() === "salir") {
-                    delete userState[phone]; // Resetear el flujo
-                    await sendWhatsAppText(phone, "Has salido del flujo de automatización. Para empezar de nuevo, escribe 'Hola'.");
-                } else if (text.toLowerCase() === "hola") {
-                    userState[phone] = "menu_principal";
-                    await sendWhatsAppText(phone, "¡Hola de nuevo! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas? Responde con el número de la opción:\n\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Contactar con un asesor (WhatsApp, Correo o Videollamada)\n\nEscribe 'Salir' para reiniciar en cualquier momento.");
-                } else if (userState[phone]) {
-                    await sendWhatsAppText(phone, "No entendí tu mensaje. Por favor, selecciona una opción válida o escribe 'Salir' para volver al menú principal.");
-                } else {
-                    await sendWhatsAppText(phone, "No entendí tu mensaje. Para comenzar nuevamente, escribe 'Hola'.");
-                }
-                break;
-
             case "inicio":
                 await sendWhatsAppText(phone, "¡Hola! Soy el asistente virtual de DigitalMatchGlobal. 🚀\n\n¿Qué tipo de ayuda necesitas? Responde con el número de la opción:\n\n1️⃣ Automatizar procesos\n2️⃣ Información sobre servicios\n3️⃣ Contactar con un asesor (WhatsApp, Correo o Videollamada)\n\nEscribe 'Salir' para reiniciar en cualquier momento.");
                 userState[phone] = "menu_principal";
