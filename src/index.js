@@ -423,12 +423,20 @@ app.get("/webhook", (req, res) => {
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
+    console.log("🔍 Verificando Webhook...");
+    console.log("🔹 Modo:", mode);
+    console.log("🔹 Token recibido:", token);
+    console.log("🔹 Challenge recibido:", challenge);
+
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
+        console.log("✅ Webhook verificado correctamente.");
         return res.status(200).send(challenge);
     } else {
+        console.log("❌ Verificación fallida. Token incorrecto.");
         return res.sendStatus(403);
     }
 });
+
 
 
 // ✅ Endpoint para obtener consultas almacenadas con paginación y seguridad
