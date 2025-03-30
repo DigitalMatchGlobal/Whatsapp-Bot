@@ -4,7 +4,7 @@ const Consulta = require("../models/consulta.model");
 async function guardarConsulta(usuario, mensaje, contexto, estado) {
   try {
     if (estado === "Seguimiento en Proceso") {
-      const consultaPrevia = await Consulta.findOne({ usuario }).sort({ fecha: -1 });
+      const consultaPrevia = await Consulta.findOne({ usuario }).sort({ fecha: -1 });// Busca la última consulta
       if (consultaPrevia) {
         contexto = `Seguimiento de consulta previa: ${consultaPrevia.mensaje}`;
       }
