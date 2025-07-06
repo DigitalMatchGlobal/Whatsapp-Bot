@@ -42,6 +42,8 @@ const authRoutes = require('./routes/auth.routes')
 const clienteRoutes = require('./routes/cliente.routes');
 app.use(authRoutes)
 app.use('/cliente', clienteRoutes);
+app.use('/whatsapp', require('./routes/whatsapp.routes'));
+
 
 app.listen(PORT, () => {
   console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
