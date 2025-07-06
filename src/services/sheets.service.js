@@ -1,14 +1,12 @@
 // Archivo: src/services/sheets.service.js
-const fs = require("fs");
 const { google } = require("googleapis");
 
 let sheets;
 const SHEET_NAME = "ListadoConsultas";
 const SHEETS_ID = process.env.GOOGLE_SHEETS_ID;
-const CREDENTIALS_PATH = process.env.GOOGLE_SHEETS_CREDENTIALS_FILE;
 
 function connectSheets() {
-  const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, "utf8"));
+  const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS);
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ["https://www.googleapis.com/auth/spreadsheets"]

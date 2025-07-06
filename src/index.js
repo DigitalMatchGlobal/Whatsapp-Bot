@@ -4,10 +4,6 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const fs = require("fs");
-
-const webhookRoutes = require("./routes/webhook.routes");
-const consultaRoutes = require("./routes/consulta.routes");
 const { connectSheets } = require("./services/sheets.service");
 const { logger } = require("./middlewares/logger");
 
@@ -19,10 +15,10 @@ app.use(logger);
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
-const CREDENTIALS_PATH = process.env.GOOGLE_SHEETS_CREDENTIALS_FILE;
+const GOOGLE_SHEETS_CREDENTIALS = process.env.GOOGLE_SHEETS_CREDENTIALS;
 
-if (!fs.existsSync(CREDENTIALS_PATH)) {
-  console.error("❌ Archivo de credenciales de Sheets no encontrado en:", CREDENTIALS_PATH);
+if (!GOOGLE_SHEETS_CREDENTIALS) {
+  console.error("❌ Variable GOOGLE_SHEETS_CREDENTIALS no definida en entorno.");
   process.exit(1);
 }
 
@@ -33,17 +29,19 @@ mongoose.connect(MONGO_URI)
     process.exit(1);
   });
 
-connectSheets();
+connectSheets(JSON.parse(GOOGLE_SHEETS_CREDENTIALS));
+
+const webhookRoutes = require("./routes/webhook.routes");
+const consultaRoutes = require("./routes/consulta.routes");
+const authRoutes = require('./routes/auth.routes');
+const clienteRoutes = require('./routes/cliente.routes');
+const whatsappRoutes = require('./routes/whatsapp.routes');
 
 app.use("/webhook", webhookRoutes);
 app.use("/consultas", consultaRoutes);
-
-const authRoutes = require('./routes/auth.routes')
-const clienteRoutes = require('./routes/cliente.routes');
-app.use(authRoutes)
-app.use('/cliente', clienteRoutes);
-app.use('/whatsapp', require('./routes/whatsapp.routes'));
-
+app.use(authRoutes);
+app.use("/cliente", clienteRoutes);
+app.use("/whatsapp", whatsappRoutes);
 
 app.listen(PORT, () => {
   console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
