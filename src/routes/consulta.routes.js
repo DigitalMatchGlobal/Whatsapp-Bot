@@ -1,10 +1,11 @@
-// Archivo: src/routes/consulta.routes.js
-const express = require("express");
+// src/routes/consulta.routes.js
+const express = require('express');
 const router = express.Router();
-const { getConsultas, limpiarConsultas } = require("../controllers/consulta.controller");
-const { verificarAPIKey } = require("../middlewares/auth");
+const consultaController = require('../controllers/consulta.controller');
+const { verificarJWT } = require('../middlewares/jwt');
 
-router.get("/", verificarAPIKey, getConsultas);
-router.delete("/limpiar", verificarAPIKey, limpiarConsultas);
+router.get('/', verificarJWT, consultaController.obtenerConsultasPorCliente);
+router.get('/kpis', verificarJWT, consultaController.obtenerKpis);
+router.get('/recent', verificarJWT, consultaController.obtenerUltimasConsultas);
 
 module.exports = router;

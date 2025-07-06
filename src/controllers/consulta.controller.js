@@ -1,34 +1,44 @@
-// Archivo: src/controllers/consulta.controller.js
-const Consulta = require("../models/consulta.model");
+// src/controllers/consulta.controller.js
+const Consulta = require('../models/consulta.model');
 
-const getConsultas = async (req, res) => {
+exports.obtenerConsultasPorCliente = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    const consultas = await Consulta.find()
+    const clienteId = req.user.cliente_id;
+
+    const consultas = await Consulta.find({ cliente_id: clienteId })
       .sort({ fecha: -1 })
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit));
+
     res.json({ success: true, data: consultas });
-  } catch (error) {
-    console.error("❌ Error al obtener consultas:", error);
-    res.status(500).json({ success: false, message: "Error al obtener las consultas" });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener consultas', error: err.message });
   }
 };
 
-const limpiarConsultas = async (req, res) => {
+exports.obtenerKpis = async (req, res) => {
   try {
-    const { dias = 30 } = req.query;
-    const limiteFecha = new Date();
-    limiteFecha.setDate(limiteFecha.getDate() - dias);
-    await Consulta.deleteMany({ fecha: { $lt: limiteFecha } });
-    res.json({ success: true, message: `Consultas de más de ${dias} días eliminadas.` });
-  } catch (error) {
-    console.error("❌ Error al limpiar consultas:", error);
-    res.status(500).json({ success: false, message: "Error al limpiar consultas" });
+    const clienteId = req.user.cliente_id;
+    const total = await Consulta.distinct('usuario', { cliente_id: clienteId });
+    const finalizadas = await Consulta.countDocuments({ cliente_id: clienteId, estado: 'finalizada' });
+    const derivadas = await Consulta.countDocuments({ cliente_id: clienteId, estado: 'derivar' });
+
+    res.json({ totalUnicos: total.length, finalizadas, derivadas });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener KPIs', error: err.message });
   }
 };
 
-module.exports = {
-  getConsultas,
-  limpiarConsultas
+exports.obtenerUltimasConsultas = async (req, res) => {
+  try {
+    const clienteId = req.user.cliente_id;
+    const consultas = await Consulta.find({ cliente_id: clienteId })
+      .sort({ fecha: -1 })
+      .limit(10);
+
+    res.json({ consultas });
+  } catch (err) {
+    res.status(500).json({ message: 'Error al obtener últimas consultas', error: err.message });
+  }
 };

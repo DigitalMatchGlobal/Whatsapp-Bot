@@ -38,6 +38,11 @@ connectSheets();
 app.use("/webhook", webhookRoutes);
 app.use("/consultas", consultaRoutes);
 
+const authRoutes = require('./routes/auth.routes')
+const clienteRoutes = require('./routes/cliente.routes');
+app.use(authRoutes)
+app.use('/cliente', clienteRoutes);
+
 app.listen(PORT, () => {
   console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
 });
