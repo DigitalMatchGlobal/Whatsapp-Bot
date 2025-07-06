@@ -1,10 +1,10 @@
 // Archivo: src/index.js
+// Archivo: src/index.js
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const { connectSheets } = require("./services/sheets.service");
 const { logger } = require("./middlewares/logger");
 
 const app = express();
@@ -15,12 +15,6 @@ app.use(logger);
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
-const GOOGLE_SHEETS_CREDENTIALS = process.env.GOOGLE_SHEETS_CREDENTIALS;
-
-if (!GOOGLE_SHEETS_CREDENTIALS) {
-  console.error("❌ Variable GOOGLE_SHEETS_CREDENTIALS no definida en entorno.");
-  process.exit(1);
-}
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log("✅ Conectado a MongoDB Atlas"))
@@ -29,13 +23,11 @@ mongoose.connect(MONGO_URI)
     process.exit(1);
   });
 
-connectSheets(JSON.parse(GOOGLE_SHEETS_CREDENTIALS));
-
 const webhookRoutes = require("./routes/webhook.routes");
 const consultaRoutes = require("./routes/consulta.routes");
-const authRoutes = require('./routes/auth.routes');
-const clienteRoutes = require('./routes/cliente.routes');
-const whatsappRoutes = require('./routes/whatsapp.routes');
+const authRoutes = require("./routes/auth.routes");
+const clienteRoutes = require("./routes/cliente.routes");
+const whatsappRoutes = require("./routes/whatsapp.routes");
 
 app.use("/webhook", webhookRoutes);
 app.use("/consultas", consultaRoutes);
