@@ -2,7 +2,6 @@
 const { predefinedResponses, areaMap } = require("../helpers/constants");
 const { sendWhatsAppText } = require("../services/whatsapp.service");
 const { guardarConsulta } = require("../services/mongo.service");
-const { writeToSheet } = require("../services/sheets.service");
 
 const userState = {};
 
@@ -48,7 +47,6 @@ const handleWebhookPost = async (req, res) => {
       contexto = "Conversación reiniciada";
       estado = "menu_principal";
       await guardarConsulta(phone, text, contexto, estado);
-      await writeToSheet(phone, name, text, contexto, estado);
       return res.sendStatus(200);// Finaliza aquí para evitar que continúe procesando
     }
 
@@ -233,7 +231,6 @@ const handleWebhookPost = async (req, res) => {
     }
 
     await guardarConsulta(phone, text, contexto, estado);
-    await writeToSheet(phone, name, text, contexto, estado);
     res.sendStatus(200);
   } catch (err) {
     console.error("❌ Error en webhook:", err);
