@@ -83,6 +83,8 @@ const handleWebhookPost = async (req, res) => {
             } else {
                 await sendWhatsAppText(phone, "No entendí tu mensaje. Para comenzar nuevamente, escribe 'Hola'.");
             }
+            await guardarConsulta(phone, text, contexto, estado);
+            return res.sendStatus(200);
             break;
         
         case "inicio":
@@ -90,7 +92,9 @@ const handleWebhookPost = async (req, res) => {
             userState[phone] = "menu_principal";
             contexto = "Inicio de Conversación";
             estado = "menu_principal";
-            break;
+            await guardarConsulta(phone, text, contexto, estado);
+            return res.sendStatus(200);
+
 
         case "menu_principal":
             if (text === "1") {
